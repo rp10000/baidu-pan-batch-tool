@@ -14,14 +14,14 @@ interface BdpanListItem {
 }
 
 export class BdpanCliAdapter implements StorageAdapter {
-  readonly mode = "bdpan_cli" as const;
+  readonly mode = "bdpan_wsl" as const;
 
   constructor(private readonly runner: BdpanCommandRunner) {}
 
   async getCapabilities(): Promise<StorageCapabilities> {
     const connection = await this.checkConnection();
     if (!connection.ok) {
-      const status = connection.message.includes("未登录") ? "login_required" : "wsl_required";
+      const status = "wsl_only";
       return {
         ...DEFAULT_STORAGE_CAPABILITIES,
         checkLogin: status,
@@ -45,7 +45,7 @@ export class BdpanCliAdapter implements StorageAdapter {
       moveFile: "supported",
       downloadFile: "supported",
       uploadFile: "supported",
-      createShareLink: "unknown"
+      createShareLink: "paid_required"
     };
   }
 

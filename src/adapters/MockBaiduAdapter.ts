@@ -5,20 +5,20 @@ export class MockBaiduAdapter implements StorageAdapter {
 
   async getCapabilities(): Promise<StorageCapabilities> {
     return {
-      checkLogin: "supported",
-      transferSharedLink: "supported",
-      listFiles: "supported",
-      createDirectory: "supported",
-      renameFile: "supported",
-      moveFile: "supported",
-      downloadFile: "supported",
-      uploadFile: "supported",
-      createShareLink: "supported"
+      checkLogin: "mock_only",
+      transferSharedLink: "mock_only",
+      listFiles: "mock_only",
+      createDirectory: "mock_only",
+      renameFile: "mock_only",
+      moveFile: "mock_only",
+      downloadFile: "mock_only",
+      uploadFile: "mock_only",
+      createShareLink: "mock_only"
     };
   }
 
   async checkConnection(): Promise<{ ok: boolean; displayName?: string; message: string }> {
-    return { ok: true, displayName: "Mock", message: "Mock 模式已连接" };
+    return { ok: true, displayName: "Mock", message: "Mock 演示模式，不会真实转存" };
   }
 
   async transferSharedLink(input: {

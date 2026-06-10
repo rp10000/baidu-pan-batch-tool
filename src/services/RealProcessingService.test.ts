@@ -32,7 +32,7 @@ describe("RealProcessingService", () => {
   it("runs the bdpan transfer to classify, rename, move, and share flow with share fallback", async () => {
     const calls: string[] = [];
     const adapter: StorageAdapter = {
-      mode: "bdpan_cli",
+      mode: "bdpan_wsl",
       async getCapabilities() {
         return supportedCapabilities;
       },

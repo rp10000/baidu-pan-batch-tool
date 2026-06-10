@@ -1,12 +1,5 @@
-export type AdapterMode = "mock" | "bdpan_cli" | "baidu_mcp" | "baidu_sdk";
-
-export type CapabilityStatus =
-  | "supported"
-  | "unsupported"
-  | "paid_required"
-  | "wsl_required"
-  | "login_required"
-  | "unknown";
+import type { AdapterMode, CapabilityStatus } from "./adapterMode";
+export type { AdapterMode, CapabilityStatus } from "./adapterMode";
 
 export interface StorageCapabilities {
   checkLogin: CapabilityStatus;
@@ -95,13 +88,13 @@ export interface StorageAdapter {
 export const PANJIE_ROOT = "panjie";
 
 export const DEFAULT_STORAGE_CAPABILITIES: StorageCapabilities = {
-  checkLogin: "unknown",
-  transferSharedLink: "unknown",
-  listFiles: "unknown",
-  createDirectory: "unknown",
-  renameFile: "unknown",
-  moveFile: "unknown",
-  downloadFile: "unknown",
-  uploadFile: "unknown",
-  createShareLink: "unknown"
+  checkLogin: "needs_official_verification",
+  transferSharedLink: "needs_official_verification",
+  listFiles: "needs_official_verification",
+  createDirectory: "needs_official_verification",
+  renameFile: "needs_official_verification",
+  moveFile: "needs_official_verification",
+  downloadFile: "needs_official_verification",
+  uploadFile: "needs_official_verification",
+  createShareLink: "needs_official_verification"
 };

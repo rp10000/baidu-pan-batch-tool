@@ -1,5 +1,7 @@
 import { Download, Play } from "lucide-react";
 import { useMemo, useState } from "react";
+import { getAdapterModeMeta } from "../adapters/adapterMode";
+import type { AdapterMode } from "../adapters/adapterMode";
 import { TaskResultModal } from "../components/batch/TaskResultModal";
 import { ProcessActionChips } from "../components/batch/ProcessActionChips";
 import { ProcessedFileTable } from "../components/batch/ProcessedFileTable";
@@ -44,6 +46,7 @@ export function BatchProcessPage({
   const [running, setRunning] = useState(false);
   const { activeTask, createTask, updateTask } = useTaskStore();
   const storage = useStorageMode();
+  const modeMeta = getAdapterModeMeta(storage.activeMode);
   const parsedInputs = useMemo(() => parseShareLinks(input), [input]);
   const inputStats = useMemo(
     () => ({
@@ -67,10 +70,10 @@ export function BatchProcessPage({
     setRunning(true);
     setModalOpen(false);
     let created = false;
-    const service =
-      storage.activeMode === "bdpan_cli"
-        ? new RealProcessingService(storage.getActiveAdapter())
-        : new MockProcessingService();
+    const canUseBdpan = storage.activeMode === "bdpan_wsl" && storage.connectionOk;
+    const service = canUseBdpan
+      ? new RealProcessingService(storage.getActiveAdapter())
+      : new MockProcessingService();
     try {
       const task = await service.createAndRunTask(input, options, (snapshot) => {
         if (!created) {
@@ -82,7 +85,7 @@ export function BatchProcessPage({
       });
       updateTask(task);
       setModalOpen(true);
-      onToast(task.shareError ? `任务完成，${task.shareError}` : `任务完成，已生成新分享码 ${task.shareResult?.extractCode ?? "----"}`);
+      onToast(task.shareError ? `任务完成：${task.shareError}` : `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`);
     } finally {
       setRunning(false);
     }
@@ -118,7 +121,7 @@ export function BatchProcessPage({
       <div className="page-title">
         <div>
           <h2>批量处理</h2>
-          <p>粘贴他人网盘链接，识别提取码，执行分类、转存、扫描、重命名并生成新分享码</p>
+          <p>输入百度网盘分享链接和提取码，按当前接入模式执行转存、分类、重命名和导出</p>
         </div>
         <div className="page-actions">
           <button className="secondary-btn" type="button">
@@ -164,19 +167,19 @@ export function BatchProcessPage({
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
           </Card>
-          <Card title="真实接入状态" action={<Tag tone={storage.activeMode === "bdpan_cli" ? "green" : "orange"}>{modeLabel(storage.activeMode)}</Tag>}>
+          <Card title="接入状态" action={<Tag tone={storage.activeMode === "bdpan_wsl" ? "blue" : "orange"}>{modeMeta.badge}</Tag>}>
             <div className="rename-preview">
               <div>
-                <span>当前接入</span>
-                <b>{modeLabel(storage.activeMode)}</b>
+                <span>当前使用</span>
+                <b>{modeMeta.label}</b>
               </div>
               <div>
-                <span>bdpan 状态</span>
-                <b>{storage.message}</b>
+                <span>状态说明</span>
+                <b>{modeNotice(storage.activeMode, storage.message)}</b>
               </div>
               <div>
-                <span>输出目录</span>
-                <b>我的应用数据 / bdpan / panjie</b>
+                <span>Windows 主线</span>
+                <b>bdpan WSL 不可用不会阻塞桌面版主流程开发</b>
               </div>
             </div>
           </Card>
@@ -196,7 +199,7 @@ export function BatchProcessPage({
                 <span>
                   {activeTask?.shareResult
                     ? `${activeTask.shareResult.newShareUrl} · 提取码 ${activeTask.shareResult.extractCode}`
-                    : "开始处理后生成 mock 分享信息"}
+                    : "当前页面会按接入模式显示真实结果、降级原因或 Mock 演示结果"}
                 </span>
               </div>
             </div>
@@ -207,12 +210,15 @@ export function BatchProcessPage({
   );
 }
 
-function modeLabel(mode: string): string {
-  const labels: Record<string, string> = {
-    mock: "Mock",
-    bdpan_cli: "bdpan CLI",
-    baidu_mcp: "百度 MCP",
-    baidu_sdk: "百度 SDK"
-  };
-  return labels[mode] ?? mode;
+function modeNotice(mode: AdapterMode, message: string): string {
+  if (mode === "mock") {
+    return "这是演示模式，不会真实转存。";
+  }
+  if (mode === "windows_native_official") {
+    return "当前官方 Windows 原生接入尚未确认支持分享链接转存。可先使用 Mock 演示，或切换到 bdpan WSL 高级模式。";
+  }
+  if (mode === "bdpan_wsl") {
+    return `bdpan WSL 高级模式：${message}`;
+  }
+  return message;
 }

@@ -1,8 +1,10 @@
 import { Bell, Plus, Search, ShieldCheck } from "lucide-react";
+import { getAdapterModeMeta } from "../adapters/adapterMode";
 import { useStorageMode } from "../state/storageModeStore";
 
 export function TopBar({ onNewTask }: { onNewTask: () => void }) {
   const storage = useStorageMode();
+  const meta = getAdapterModeMeta(storage.activeMode);
 
   return (
     <header className="topbar">
@@ -13,7 +15,7 @@ export function TopBar({ onNewTask }: { onNewTask: () => void }) {
       <div className="top-spacer" />
       <span className="sync-pill">
         <ShieldCheck size={17} />
-        当前接入：{modeLabel(storage.activeMode)}
+        当前接入：{meta.label}
       </span>
       <span className="sync-pill">
         <Bell size={17} />
@@ -25,14 +27,4 @@ export function TopBar({ onNewTask }: { onNewTask: () => void }) {
       </button>
     </header>
   );
-}
-
-function modeLabel(mode: string): string {
-  const labels: Record<string, string> = {
-    mock: "Mock",
-    bdpan_cli: "bdpan CLI",
-    baidu_mcp: "百度 MCP",
-    baidu_sdk: "百度 SDK"
-  };
-  return labels[mode] ?? mode;
 }

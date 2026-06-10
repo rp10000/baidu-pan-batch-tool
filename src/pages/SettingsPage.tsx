@@ -1,7 +1,29 @@
 import { Database, KeyRound, Palette, RotateCcw, SlidersHorizontal } from "lucide-react";
-import type { AdapterMode, CapabilityStatus, StorageCapabilities } from "../adapters/StorageAdapter";
+import {
+  ADAPTER_MODE_OPTIONS,
+  CAPABILITY_LABELS,
+  CAPABILITY_MATRIX,
+  capabilityStatusLabel,
+  getAdapterModeMeta
+} from "../adapters/adapterMode";
+import type { AdapterMode, CapabilityKey, CapabilityStatus } from "../adapters/adapterMode";
 import { useStorageMode } from "../state/storageModeStore";
 import { Card, StatusDot, Switch, Tag } from "../components/ui";
+
+const matrixRows: CapabilityKey[] = [
+  "checkLogin",
+  "getUserInfo",
+  "getQuota",
+  "listFiles",
+  "createDirectory",
+  "transferSharedLink",
+  "listTransferredFiles",
+  "renameFile",
+  "moveFile",
+  "downloadFile",
+  "uploadFile",
+  "createShareLink"
+];
 
 export function SettingsPage() {
   const storage = useStorageMode();
@@ -10,7 +32,7 @@ export function SettingsPage() {
       <div className="page-title">
         <div>
           <h2>设置中心</h2>
-          <p>授权状态、连接状态、本地服务状态、接口能力状态、扫描规则、主题色、日志与缓存</p>
+          <p>Windows 桌面版接入路线、能力矩阵、本地服务状态、扫描规则和缓存日志</p>
         </div>
       </div>
 
@@ -24,9 +46,10 @@ export function SettingsPage() {
           onRefresh={storage.refreshCapabilities}
         />
         <ProcessingSettingsCard />
+        <AdapterMatrixCard />
+        <ActiveCapabilityCard mode={storage.activeMode} />
         <ScanSettingsCard />
         <ThemeCard />
-        <ApiStatusCard capabilities={storage.capabilities} />
         <CacheLogCard />
       </div>
     </section>
@@ -48,33 +71,98 @@ function AuthorizationCard({
   onModeChange: (mode: AdapterMode) => void;
   onRefresh: () => void;
 }) {
+  const activeMeta = getAdapterModeMeta(activeMode);
   return (
-    <Card title="接入模式" action={<Tag tone={activeMode === "mock" ? "orange" : "green"}>{modeLabel(activeMode)}</Tag>}>
+    <Card title="接入模式" action={<Tag tone={activeMode === "mock" ? "orange" : "green"}>{activeMeta.badge}</Tag>}>
       <div className="setting-hero">
         <KeyRound size={34} />
         <div>
-          <b>当前接入：{modeLabel(activeMode)}</b>
+          <b>当前接入：{activeMeta.label}</b>
           <span>{message}</span>
         </div>
       </div>
       <div className="mode-grid">
-        {(["mock", "bdpan_cli", "baidu_mcp", "baidu_sdk"] as AdapterMode[]).map((item) => (
+        {ADAPTER_MODE_OPTIONS.map((item) => (
           <button
-            className={`mode-card ${mode === item ? "active" : ""}`}
-            key={item}
+            className={`mode-card ${mode === item.mode ? "active" : ""}`}
+            key={item.mode}
             type="button"
-            onClick={() => onModeChange(item)}
+            onClick={() => onModeChange(item.mode)}
           >
-            {modeLabel(item)}
+            <b>{item.badge}：{item.label}</b>
+            <span>{item.description}</span>
           </button>
         ))}
       </div>
-      <p className="muted">所有自动化输出固定在：我的应用数据 / bdpan / panjie</p>
+      <p className="muted">bdpan WSL 是高级模式；普通 Windows 桌面版默认走官方原生能力验证路线。</p>
       <button className="secondary-btn full" type="button" onClick={onRefresh}>
-        {checking ? "检测中" : "检测 bdpan / WSL / 登录状态"}
+        {checking ? "检测中" : activeMode === "bdpan_wsl" ? "检测 bdpan / WSL / 登录状态" : "刷新当前模式状态"}
       </button>
     </Card>
   );
+}
+
+function AdapterMatrixCard() {
+  return (
+    <Card title="全模式能力矩阵" className="span-2" action={<Tag tone="blue">Windows 主线</Tag>}>
+      <div className="table-scroll">
+        <table className="capability-table">
+          <thead>
+            <tr>
+              <th>能力</th>
+              {ADAPTER_MODE_OPTIONS.map((mode) => (
+                <th key={mode.mode}>{mode.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrixRows.map((key) => (
+              <tr key={key}>
+                <td>{CAPABILITY_LABELS[key]}</td>
+                {ADAPTER_MODE_OPTIONS.map((mode) => (
+                  <td key={mode.mode}>
+                    <CapabilityStatusBadge status={CAPABILITY_MATRIX[key][mode.mode]} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function ActiveCapabilityCard({ mode }: { mode: AdapterMode }) {
+  const meta = getAdapterModeMeta(mode);
+  const rows: Array<[CapabilityKey, string]> = [
+    ["transferSharedLink", "核心：分享链接转存"],
+    ["listFiles", "读取目录"],
+    ["renameFile", "重命名"],
+    ["moveFile", "移动归档"],
+    ["createShareLink", "创建分享链接"]
+  ];
+
+  return (
+    <Card title="当前模式关键能力" action={<Tag tone="orange">{meta.label}</Tag>}>
+      {rows.map(([key, label]) => {
+        const status = CAPABILITY_MATRIX[key][mode];
+        return (
+          <div className="api-row" key={key}>
+            <span>
+              <StatusDot tone={statusTone(status)} />
+              {label}
+            </span>
+            <b>{capabilityStatusLabel(status)}</b>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+function CapabilityStatusBadge({ status }: { status: CapabilityStatus }) {
+  return <span className={`capability-badge ${status}`}>{capabilityStatusLabel(status)}</span>;
 }
 
 function ProcessingSettingsCard() {
@@ -83,7 +171,7 @@ function ProcessingSettingsCard() {
       <div className="form-grid">
         <label><span>并发数</span><input className="input" value="3" readOnly /></label>
         <label><span>重试次数</span><input className="input" value="2" readOnly /></label>
-        <label><span>工作目录</span><input className="input" value="我的应用数据 / bdpan / panjie" readOnly /></label>
+        <label><span>默认工作目录</span><input className="input" value="我的应用数据 / bdpan / panjie" readOnly /></label>
         <label><span>重复文件策略</span><select className="select" value="skip" disabled><option value="skip">跳过已有文件</option></select></label>
       </div>
     </Card>
@@ -93,7 +181,7 @@ function ProcessingSettingsCard() {
 function ScanSettingsCard() {
   return (
     <Card title="扫描规则开关">
-      {["扫描子文件夹", "忽略隐藏文件", "联系方式检测", "二维码检测", "自动清理敏感日志"].map((rule) => (
+      {["扫描子文件夹", "忽略隐藏文件", "联系方式检测", "二维码检测", "敏感日志脱敏"].map((rule) => (
         <div className="rule-row" key={rule}>
           <span>{rule}</span>
           <Switch checked />
@@ -116,56 +204,6 @@ function ThemeCard() {
   );
 }
 
-function ApiStatusCard({ capabilities }: { capabilities: StorageCapabilities }) {
-  const rows: Array<[keyof StorageCapabilities, string]> = [
-    ["checkLogin", "登录"],
-    ["transferSharedLink", "转存分享链接"],
-    ["listFiles", "读取文件列表"],
-    ["createDirectory", "创建目录"],
-    ["renameFile", "重命名"],
-    ["moveFile", "移动"],
-    ["downloadFile", "下载"],
-    ["uploadFile", "上传"],
-    ["createShareLink", "创建分享链接"]
-  ];
-
-  return (
-    <Card title="能力矩阵">
-      {rows.map(([key, label]) => (
-        <div className="api-row" key={key}>
-          <span>
-            <StatusDot tone={capabilities[key] === "supported" ? "green" : capabilities[key] === "paid_required" ? "orange" : "red"} />
-            {label}
-          </span>
-          <b>{capabilityLabel(capabilities[key])}</b>
-        </div>
-      ))}
-    </Card>
-  );
-}
-
-function capabilityLabel(status: CapabilityStatus): string {
-  const labels: Record<CapabilityStatus, string> = {
-    supported: "可用",
-    unsupported: "不支持",
-    paid_required: "需开通",
-    wsl_required: "需 WSL / CLI",
-    login_required: "需登录",
-    unknown: "待检测"
-  };
-  return labels[status];
-}
-
-function modeLabel(mode: AdapterMode): string {
-  const labels: Record<AdapterMode, string> = {
-    mock: "Mock",
-    bdpan_cli: "bdpan CLI",
-    baidu_mcp: "百度 MCP",
-    baidu_sdk: "百度 SDK"
-  };
-  return labels[mode];
-}
-
 function CacheLogCard() {
   return (
     <Card title="日志与缓存" action={<Database size={18} />}>
@@ -182,4 +220,11 @@ function CacheLogCard() {
       </div>
     </Card>
   );
+}
+
+function statusTone(status: CapabilityStatus): "blue" | "pink" | "orange" | "green" | "red" {
+  if (status === "supported" || status === "mock_only") return "green";
+  if (status === "needs_official_verification" || status === "paid_required" || status === "manual_required") return "orange";
+  if (status === "wsl_only") return "blue";
+  return "red";
 }
