@@ -1,4 +1,5 @@
 import type { AdapterMode } from "../adapters/StorageAdapter";
+import type { ScanOptions, ShareTiming } from "./scanOptions";
 
 export type TaskStatus =
   | "draft"
@@ -54,6 +55,8 @@ export interface ProcessingOptions {
   autoRenameFiles: boolean;
   renameRule: string;
   targetDirectory: string;
+  scanOptions: ScanOptions;
+  shareTiming: ShareTiming;
 }
 
 export interface DetectedRisk {

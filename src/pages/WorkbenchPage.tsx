@@ -1,11 +1,13 @@
 import { Activity, Archive, CheckCircle2, Clock3, FileScan, Share2, Zap } from "lucide-react";
 import { PIPELINE_LABELS, PIPELINE_ORDER } from "../domain/pipeline";
 import { useTaskStore } from "../state/taskStore";
+import { useStorageMode } from "../state/storageModeStore";
 import type { PageId } from "../types";
 import { Card, StatCard, StatusDot, Tag } from "../components/ui";
 
 export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const { tasks, activeTask, selectTask } = useTaskStore();
+  const storage = useStorageMode();
   const completedTasks = tasks.filter((task) => task.status === "completed");
   const riskCount = tasks.reduce((sum, task) => sum + task.processedFiles.flatMap((file) => file.risks).length, 0);
   const transferredCount = tasks.reduce((sum, task) => sum + task.summary.transferredFiles, 0);
@@ -78,6 +80,22 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
                 <span>{item}</span>
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card title="快速处理状态" action={<Tag tone="green">默认</Tag>}>
+          <div className="rename-preview">
+            <div><span>当前接入模式</span><b>{storage.displayName}</b></div>
+            <div><span>主流程</span><b>转存 → 分类 → 重命名 → 移动 → 分享</b></div>
+            <div><span>扫描状态</span><b>{activeTask?.options.scanOptions.enabled ? "按需扫描已启用" : "扫描未启用，快速完成"}</b></div>
+          </div>
+        </Card>
+
+        <Card title="深度扫描任务" action={<Tag tone={activeTask?.options.scanOptions.mode === "deep" ? "orange" : "blue"}>按需</Tag>}>
+          <div className="rename-preview">
+            <div><span>OCR / QR</span><b>{activeTask?.options.scanOptions.enabled ? "按任务选项执行" : "未初始化"}</b></div>
+            <div><span>视频抽帧</span><b>{activeTask?.options.scanOptions.scanVideo ? "已启用" : "未启用"}</b></div>
+            <div><span>清理副本</span><b>{activeTask?.options.scanOptions.createCleanCopy ? "生成副本" : "未启用"}</b></div>
           </div>
         </Card>
 

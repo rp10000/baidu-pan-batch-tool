@@ -1,0 +1,22 @@
+import { app } from "electron";
+import { createMainWindow } from "./window.js";
+import { registerIpc } from "./ipc.js";
+
+app.setAppUserModelId("com.panjie.batchassistant");
+
+registerIpc();
+
+app.whenReady().then(() => {
+  createMainWindow();
+  app.on("activate", () => {
+    if (app.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});

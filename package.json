@@ -3,9 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
+    "desktop:dev": "npm run build && electron .",
+    "desktop:watch": "electron .",
+    "package:win": "npm run build && electron-builder --win",
+    "dist:win": "npm run build && electron-builder --win nsis portable",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -14,7 +19,41 @@
     "prep:oauth": "node scripts/oauth-preflight.mjs",
     "bridge:bdpan": "node scripts/bdpan-local-service.mjs",
     "smoke:bdpan": "node scripts/bdpan-smoke.mjs",
-    "smoke:local-cli": "node scripts/local-cli-smoke.mjs"
+    "smoke:local-cli": "node scripts/local-cli-smoke.mjs",
+    "assets:generate": "node scripts/generate-test-assets.mjs"
+  },
+  "build": {
+    "appId": "com.panjie.batchassistant",
+    "productName": "盘姬批量助手",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "tools/baidu-cli",
+        "to": "tools/baidu-cli",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "public/brand-avatar.ico",
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -26,6 +65,8 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.2",
     "jsdom": "^27.3.0",
     "playwright": "^1.60.0",
     "typescript": "^5.9.3",

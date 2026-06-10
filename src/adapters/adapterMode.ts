@@ -135,7 +135,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   transferSharedLink: {
     windows_native_official: "needs_official_verification",
-    windows_local_cli: "supported",
+    windows_local_cli: "manual_required",
     baidu_mcp: "needs_official_verification",
     baidu_sdk: "needs_official_verification",
     bdpan_wsl: "wsl_only",

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const sourceTargets = ["src", "public", "index.html", "package.json"];
+const sourceTargets = ["src", "electron", "public", "index.html", "package.json"];
 const reportTargets = ["docs/bdpan-smoke-report.md", "docs/oauth-preflight-report.md", "docs/windows-cli-smoke-report.md"];
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
 const blockedTerms = [
@@ -22,6 +22,14 @@ const blockedTerms = [
   "提取ck",
   "提取cookie",
   "提取token",
+  "access_token=",
+  "refresh_token=",
+  "BDUSS=",
+  "STOKEN=",
+  "BAIDUID=",
+  "secrets/",
+  "auth.json",
+  "token.json",
   "抓包",
   "HAR",
   "hidden endpoint",
@@ -84,6 +92,10 @@ function scanPath(path) {
       findings.push(`${path}: ${term}`);
     }
   });
+
+  if (/\.env\.local(?!\.example)/.test(content)) {
+    findings.push(`${path}: .env.local`);
+  }
 }
 
 function scanGitIndex() {
@@ -104,6 +116,15 @@ function scanGitIndex() {
 
   for (const file of trackedEnvFiles) {
     findings.push(`${file}: env file is tracked by git`);
+  }
+
+  const forbiddenTrackedFiles = result.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((file) => /(^|\/)(secrets|auth\.json|token\.json)$/.test(file) || file.endsWith("/auth.json") || file.endsWith("/token.json"));
+
+  for (const file of forbiddenTrackedFiles) {
+    findings.push(`${file}: forbidden credential file is tracked by git`);
   }
 }
 

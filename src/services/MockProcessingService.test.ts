@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PipelineStage, ProcessingOptions, ProcessingTask } from "../domain/types";
 import { PIPELINE_ORDER } from "../domain/pipeline";
+import { defaultFastScanOptions, defaultStandardScanOptions } from "../domain/scanOptions";
 import { MockProcessingService } from "./MockProcessingService";
 
 const options: ProcessingOptions = {
@@ -13,7 +14,9 @@ const options: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "/自动归档/{分类}"
+  targetDirectory: "/自动归档/{分类}",
+  scanOptions: { ...defaultStandardScanOptions(), createCleanCopy: true },
+  shareTiming: "share_immediately"
 };
 
 describe("MockProcessingService", () => {
@@ -59,5 +62,21 @@ describe("MockProcessingService", () => {
       extractCode: expect.stringMatching(/^[A-Z0-9]{4}$/)
     });
     expect(task.processedFiles.flatMap((file) => file.risks).every((risk) => risk.action === "cleaned")).toBe(true);
+  });
+
+  it("keeps fast mode free of scan and clean work", async () => {
+    const task = await new MockProcessingService({ delayMs: 0 }).createAndRunTask("https://pan.example.com/s/abc123 A7K9", {
+      ...options,
+      scanWatermark: false,
+      scanTrafficContent: false,
+      autoRemoveWatermark: false,
+      removeTrafficFields: false,
+      scanOptions: defaultFastScanOptions()
+    });
+
+    expect(task.options.scanOptions.enabled).toBe(false);
+    expect(task.processedFiles.flatMap((file) => file.risks)).toHaveLength(0);
+    expect(task.summary.removedWatermarks).toBe(0);
+    expect(task.summary.removedTrafficItems).toBe(0);
   });
 });

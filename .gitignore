@@ -22,7 +22,13 @@ exports/
 tmp/
 artifacts/screenshots/
 artifacts/local-smoke/
+artifacts/test-assets/
+artifacts/cleaned/
+artifacts/scan/
 tools/baidu-cli/
+models/
+workers/.venv/
+release/
 
 # ChatGPT Native Bridge handoff files are local workflow artifacts.
 .chatgpt-native/

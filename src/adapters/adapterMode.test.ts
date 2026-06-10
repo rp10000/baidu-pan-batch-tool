@@ -18,6 +18,7 @@ describe("adapter modes", () => {
 
   it("keeps share-link transfer unverified in native modes and wsl-only in bdpan mode", () => {
     expect(CAPABILITY_MATRIX.transferSharedLink.windows_native_official).toBe("needs_official_verification");
+    expect(CAPABILITY_MATRIX.transferSharedLink.windows_local_cli).toBe("manual_required");
     expect(CAPABILITY_MATRIX.transferSharedLink.baidu_mcp).toBe("needs_official_verification");
     expect(CAPABILITY_MATRIX.transferSharedLink.baidu_sdk).toBe("needs_official_verification");
     expect(CAPABILITY_MATRIX.transferSharedLink.bdpan_wsl).toBe("wsl_only");

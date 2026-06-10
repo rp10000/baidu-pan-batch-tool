@@ -11,6 +11,8 @@ import { PipelineSteps } from "../components/batch/PipelineSteps";
 import { Card, StatCard, Tag } from "../components/ui";
 import { inputSample } from "../data/prototypeData";
 import type { ProcessingOptions } from "../domain/types";
+import { defaultDeepScanOptions, defaultFastScanOptions, defaultStandardScanOptions } from "../domain/scanOptions";
+import type { ScanMode, ScanOptions } from "../domain/scanOptions";
 import { parseShareLinks } from "../domain/shareParser";
 import { MockProcessingService } from "../services/MockProcessingService";
 import { RealProcessingService } from "../services/RealProcessingService";
@@ -22,14 +24,16 @@ import type { PageId } from "../types";
 const defaultOptions: ProcessingOptions = {
   autoClassify: true,
   autoTransfer: true,
-  scanWatermark: true,
-  scanTrafficContent: true,
-  autoRemoveWatermark: true,
-  removeTrafficFields: true,
+  scanWatermark: false,
+  scanTrafficContent: false,
+  autoRemoveWatermark: false,
+  removeTrafficFields: false,
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "panjie/output/{taskId}/{分类}"
+  targetDirectory: "盘姬测试/output/{taskId}/{分类}",
+  scanOptions: defaultFastScanOptions(),
+  shareTiming: "share_immediately"
 };
 
 export function BatchProcessPage({
@@ -47,6 +51,12 @@ export function BatchProcessPage({
   const { activeTask, createTask, updateTask } = useTaskStore();
   const storage = useStorageMode();
   const modeMeta = getAdapterModeMeta(storage.activeMode);
+  const primaryActionLabel =
+    options.scanOptions.mode === "off"
+      ? "开始快速处理"
+      : options.scanOptions.mode === "standard"
+        ? "开始处理并检查"
+        : "开始深度扫描处理";
   const parsedInputs = useMemo(() => parseShareLinks(input), [input]);
   const inputStats = useMemo(
     () => ({
@@ -105,6 +115,47 @@ export function BatchProcessPage({
     });
   }
 
+  function setScanMode(scanMode: ScanMode) {
+    const scanOptions =
+      scanMode === "off"
+        ? defaultFastScanOptions()
+        : scanMode === "standard"
+          ? defaultStandardScanOptions()
+          : defaultDeepScanOptions();
+
+    setOptions((current) => ({
+      ...current,
+      scanOptions,
+      scanWatermark: scanOptions.checkWatermark,
+      scanTrafficContent: scanOptions.checkContactInfo || scanOptions.checkTrafficWords,
+      autoRemoveWatermark: scanOptions.createCleanCopy,
+      removeTrafficFields: scanOptions.createCleanCopy
+    }));
+  }
+
+  function toggleScanOption(key: keyof ScanOptions) {
+    setOptions((current) => {
+      const value = current.scanOptions[key];
+      if (typeof value !== "boolean") {
+        return current;
+      }
+      const scanOptions = {
+        ...current.scanOptions,
+        enabled: true,
+        mode: current.scanOptions.mode === "off" ? "standard" : current.scanOptions.mode,
+        [key]: !value
+      };
+      return {
+        ...current,
+        scanOptions,
+        scanWatermark: scanOptions.checkWatermark,
+        scanTrafficContent: scanOptions.checkContactInfo || scanOptions.checkTrafficWords || scanOptions.checkOcrText || scanOptions.checkQrCode,
+        autoRemoveWatermark: scanOptions.createCleanCopy,
+        removeTrafficFields: scanOptions.createCleanCopy
+      };
+    });
+  }
+
   function copyShareInfo() {
     if (!activeTask?.shareResult) {
       onToast("当前任务还没有生成分享信息");
@@ -130,7 +181,7 @@ export function BatchProcessPage({
           </button>
           <button className="primary-btn" type="button" onClick={startProcess}>
             <Play size={17} />
-            {running ? "处理中" : "开始处理"}
+            {running ? "处理中" : primaryActionLabel}
           </button>
         </div>
       </div>
@@ -144,7 +195,12 @@ export function BatchProcessPage({
             onModeChange={setMode}
             stats={inputStats}
           />
-          <ProcessActionChips options={options} onToggle={toggleOption} />
+          <ProcessActionChips
+            options={options}
+            onToggle={toggleOption}
+            onScanModeChange={setScanMode}
+            onScanToggle={toggleScanOption}
+          />
         </div>
         <div className="batch-right">
           <TaskResultModal

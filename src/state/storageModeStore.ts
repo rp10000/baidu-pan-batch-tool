@@ -19,7 +19,7 @@ interface StorageModeValue {
   getActiveAdapter: () => ReturnType<typeof createStorageAdapter>;
 }
 
-const defaultMode: AdapterMode = "windows_native_official";
+const defaultMode: AdapterMode = "windows_local_cli";
 
 const StorageModeContext = createContext<StorageModeValue | undefined>(undefined);
 

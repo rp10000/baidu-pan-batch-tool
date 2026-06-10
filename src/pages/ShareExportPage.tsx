@@ -120,6 +120,14 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
           <span>有效期</span>
           <input className="input" value="永久有效" readOnly />
         </label>
+        <label>
+          <span>风险扫描</span>
+          <input
+            className="input"
+            value={task?.options.scanOptions.enabled ? "扫描后台进行中 / 查看扫描检查页" : "未启用风险扫描"}
+            readOnly
+          />
+        </label>
       </div>
       <button className="primary-btn full" type="button" onClick={onCopy}>
         <ClipboardCopy size={17} />

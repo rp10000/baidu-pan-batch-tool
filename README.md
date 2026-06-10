@@ -1,56 +1,76 @@
-# 百度网盘批量处理工具
+# 盘姬批量助手
 
-本项目是一个本地桌面软件的 MVP 骨架，用于批量处理百度网盘分享链接：导入链接、规则分类、任务队列展示、结果导出，并为后续接入官方 OAuth、`bdpan` CLI 和开放能力预留适配层。
+Windows 本地百度网盘批量处理客户端 MVP。当前主线是 Electron 桌面壳 + React UI + Windows 本地 CLI 适配，优先使用 BaiduPCS-Go 完成自用场景的文件操作。
 
-## 当前状态
+## 默认流程
 
-- 已建立 React + Vite + TypeScript 项目基线。
-- 已实现批量链接解析、规则分类、敏感字段脱敏、CSV 导出、mock `StorageAdapter`。
-- 已新增 Windows 原生官方模式、百度网盘 MCP 模式、百度网盘 SDK 模式、`bdpan` WSL 高级模式和 Mock 演示模式。
-- 已新增 `bdpan` CLI 适配层、本地桥接服务、能力检测和 Mock 回退；该路线仅作为高级模式，不作为普通 Windows 用户默认依赖。
-- 已提供 SQLite schema 草案与安全扫描脚本。
-- UI 目前是可运行的本地工作台原型；当前机器未检测到可用 `bdpan`，默认显示“当前接入：Mock”。
+默认是快速转存模式：
 
-## Windows 桌面接入边界
+```text
+输入分享链接和提取码 -> 转存 -> 读取文件列表 -> 自动分类 -> 重命名 -> 移动 -> 创建新分享 -> 导出结果
+```
 
-- 默认产品路线是 Windows 原生官方能力：官方 API / MCP / SDK。
-- `bdpan` WSL 是高级模式，仅在用户已配置 WSL + bdpan 时启用。
-- Mock 是演示模式，不会真实转存。
+快速模式不会下载文件样本，不初始化 OCR，不检查模型，不视频抽帧，不做水印处理。
 
-## bdpan WSL 高级模式边界
+## Windows 本地 CLI
 
-- Windows 原生不直接运行 `bdpan`，需要通过 WSL 调用。
-- 前端 React 不直接执行系统命令，只调用本机桥接服务。
-- 桥接服务命令：`npm run bridge:bdpan`。
-- 自动化输出固定在百度网盘应用数据范围：`我的应用数据 / bdpan / panjie`。
-- 如果 `bdpan share` 能力不可用，任务仍可完成转存、分类、重命名，分享结果显示“分享接口不可用 / 需开通”。
-- 百度网盘 MCP / SDK / 官方 API 是 Windows 原生主线；`bdpan` 仅保留为 WSL 高级模式验证通道。
+- 默认接入：Windows 本地 CLI 模式。
+- 当前 CLI 后端：BaiduPCS-Go v4.0.1。
+- 本地真实操作限制在 `盘姬测试/` 目录下。
+- React 前端不直接执行 CLI；真实命令必须走 Electron main / 本地 service / bridge。
+- `tools/baidu-cli/` 是本机运行目录，已加入 `.gitignore`，不会提交 exe。
+- `release/` 是打包输出目录，最终客户端优先看 portable exe 或 setup exe。
 
-## 合规边界
+## 按需扫描
 
-- 只走百度官方授权和开放能力。
-- 不采集百度账号密码。
-- 不读取浏览器会话数据或非公开请求凭证。
-- 不做提取码破解、验证码绕过、限流规避、风控绕过。
-- 水印/二维码/联系方式检查默认只做标记与人工确认；替换功能必须限制在用户自有或已获授权素材上。
+扫描/OCR/水印/引流检测默认关闭。用户勾选后才启用：
+
+- 检查二维码：启用 OpenCV QR 检测，不需要模型。
+- OCR 检查文字：需要 OCR 模型，由模型管理器检查和安装。
+- 检查联系方式：手机号、邮箱、微信号、QQ 号。
+- 检查引流内容：URL、扫码、加微信、进群、公众号等。
+- 检查水印：当前 MVP 标记风险，复杂水印不伪造清理成功。
+- 生成清理副本：只输出副本，不覆盖原始文件。
+- 深度扫描：启用更慢的图片/PDF/视频抽样，视频扫描才检查 ffmpeg。
+
+清理副本输出到 `artifacts/cleaned/<taskId>/` 或后续网盘 `盘姬测试/cleaned/<taskId>/`，不删除、不覆盖 raw 文件。
+
+## 桌面打包
+
+```powershell
+npm run package:win
+```
+
+打包输出：
+
+- `release/*portable*.exe`：免安装版本。
+- `release/*Setup*.exe`：NSIS 安装器。
+
+当前未做代码签名，Windows SmartScreen 可能提示未知发布者。
 
 ## 常用命令
 
 ```powershell
 npm install
+npm run assets:generate
 npm test
 npm run build
 npm run security:scan
-npm run bridge:bdpan
-npm run smoke:bdpan
-npm run dev
+npm run e2e
+npm run smoke:local-cli
+npm run package:win
 ```
 
-`npm run smoke:bdpan` 会生成 `docs/bdpan-smoke-report.md`，用于记录 WSL、bdpan、登录状态和基础命令 smoke 结果。报告只写脱敏状态，不写真实分享链接、提取码或授权信息。
+## 安全边界
 
-## 下一步
+- 不读取 Chrome cookie、CK、BDUSS、STOKEN。
+- 不读取浏览器 User Data、`localStorage`、`sessionStorage`。
+- 不抓 Network、不导出 HAR、不使用隐藏接口。
+- 不把真实账号、真实分享链接、提取码、授权材料写入日志、docs、git 或截图。
+- 如果 CLI 需要人工登录，只记录 `manual_auth_required`，不自动提取浏览器凭据。
 
-1. 验证 Windows 原生官方 API / MCP / SDK 是否支持分享链接转存和创建分享。
-2. 把可用适配器收进 Tauri 或 Electron 主进程。
-3. 将 SQLite schema 接到本地任务存储。
-4. 二期再接 OCR / QR 检测 worker。
+## 当前限制
+
+- BaiduPCS-Go 的 `ls/mkdir/upload/rename/mv/share` 已完成真实 smoke。
+- `transfer` 命令存在，但本机自造分享未能解析为可复用测试链接；没有用户自有测试分享时报告为 `blocked_missing_test_share`。
+- OCR/QR/PDF/视频扫描 worker 目前是 MVP 骨架；真实模型安装和深度水印处理留到后续阶段。

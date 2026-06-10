@@ -25,6 +25,12 @@ test("six pages switch without console errors and desktop screenshots are genera
     await nav.getByRole("button", { name: new RegExp(item.nav) }).click();
     await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
     await page.screenshot({ path: `artifacts/screenshots/${item.screenshot}`, fullPage: true });
+    if (item.nav === "任务工作台") {
+      await page.screenshot({ path: "artifacts/screenshots/final-desktop-home.png", fullPage: true });
+    }
+    if (item.nav === "设置中心") {
+      await page.screenshot({ path: "artifacts/screenshots/final-desktop-settings-cli.png", fullPage: true });
+    }
   }
 
   expect(errors).toEqual([]);
@@ -60,6 +66,7 @@ test("settings and batch pages show local cli mode", async ({ page }) => {
   await nav.getByRole("button", { name: /设置中心/ }).click();
   await expect(page.getByRole("heading", { name: "Windows 本地 CLI 模式" })).toBeVisible();
   await expect(page.getByText("BaiduPCS-Go v4.0.1")).toBeVisible();
+  await expect(page.getByText("transfer / share 已检测，transfer 等待测试分享链接")).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-settings-overview.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/local-cli-capability-matrix.png", fullPage: true });
 

@@ -44,6 +44,14 @@ export function TaskResultModal({
           <span>输出目录</span>
           <b>{task.outputDirectory ?? task.options.targetDirectory}</b>
         </div>
+        <div>
+          <span>扫描状态</span>
+          <b>{task.options.scanOptions.enabled ? `${task.options.scanOptions.mode} 扫描按需执行` : "扫描未启用"}</b>
+        </div>
+        <div>
+          <span>清理副本</span>
+          <b>{task.options.scanOptions.createCleanCopy ? "已请求生成清理副本" : "未启用"}</b>
+        </div>
       </div>
       <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} />
       <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />

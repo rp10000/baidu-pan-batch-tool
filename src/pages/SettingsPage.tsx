@@ -57,6 +57,7 @@ export function SettingsPage() {
         <ProcessingSettingsCard />
         <AdapterMatrixCard />
         <ActiveCapabilityCard mode={storage.activeMode} />
+        <ScanDependencyCard />
         <ScanSettingsCard />
         <ThemeCard />
         <CacheLogCard />
@@ -267,6 +268,18 @@ function ActiveCapabilityCard({ mode }: { mode: AdapterMode }) {
   );
 }
 
+function ScanDependencyCard() {
+  return (
+    <Card title="扫描依赖状态" action={<Tag tone="blue">按需加载</Tag>}>
+      <div className="api-row"><span>默认处理模式</span><b>快速转存</b></div>
+      <div className="api-row"><span>OCR 模型</span><b>未安装，勾选 OCR/水印后检查</b></div>
+      <div className="api-row"><span>二维码检测</span><b>OpenCV QR，无需模型</b></div>
+      <div className="api-row"><span>ffmpeg</span><b>仅勾选视频扫描时检查</b></div>
+      <div className="api-row"><span>清理副本</span><b>输出到 artifacts/cleaned，不覆盖原文件</b></div>
+    </Card>
+  );
+}
+
 function CapabilityStatusBadge({ status }: { status: CapabilityStatus }) {
   return <span className={`capability-badge ${status}`}>{capabilityStatusLabel(status)}</span>;
 }
@@ -277,8 +290,11 @@ function ProcessingSettingsCard() {
       <div className="form-grid">
         <label><span>并发数</span><input className="input" value="3" readOnly /></label>
         <label><span>重试次数</span><input className="input" value="2" readOnly /></label>
-        <label><span>默认工作目录</span><input className="input" value="我的应用数据 / bdpan / panjie" readOnly /></label>
+        <label><span>默认工作目录</span><input className="input" value="盘姬测试 / panjie" readOnly /></label>
+        <label><span>默认处理模式</span><select className="select" value="fast" disabled><option value="fast">快速转存</option></select></label>
         <label><span>重复文件策略</span><select className="select" value="skip" disabled><option value="skip">跳过已有文件</option></select></label>
+        <label><span>PDF 最大页数</span><input className="input" value="3 / 深度 20" readOnly /></label>
+        <label><span>单文件大小上限</span><input className="input" value="20MB / 深度 200MB" readOnly /></label>
       </div>
     </Card>
   );

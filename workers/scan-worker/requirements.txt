@@ -1,0 +1,6 @@
+paddleocr
+opencv-python
+pillow
+pymupdf
+numpy
+imageio-ffmpeg
