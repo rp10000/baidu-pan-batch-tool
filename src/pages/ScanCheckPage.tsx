@@ -96,7 +96,7 @@ function FilePreviewPanel({ file, risk }: { file?: ProcessedFile; risk?: Detecte
   return (
     <Card title="文件预览" action={<Tag tone="orange">{risk?.label ?? "等待扫描"}</Tag>}>
       <div className="preview-panel">
-        <img src="/brand-avatar.png" alt="风险文件预览" />
+        <img src="./brand-avatar.png" alt="风险文件预览" />
         <div className="scan-finding">
           <b>检测结果</b>
           <span>文件：{file?.newName ?? "暂无文件"}</span>

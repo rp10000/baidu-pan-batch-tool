@@ -1,6 +1,6 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-10T18:27:16.924Z
+generatedAt: 2026-06-10T23:44:31.656Z
 status: diagnostic
 
 ## CLI

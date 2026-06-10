@@ -12,7 +12,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="brand">
         <div className="avatar-wrap">
-          <img className="avatar" src="/brand-avatar.png" alt="盘姬头像" />
+          <img className="avatar" src="./brand-avatar.png" alt="盘姬头像" />
         </div>
         <h1>
           <span>盘姬</span>

@@ -8,8 +8,9 @@
 - Windows 图标：`public/brand-avatar.ico`
 - Portable exe：`release/盘姬批量助手 0.1.0.exe`
 - Installer：`release/盘姬批量助手 Setup 0.1.0.exe`
-- 启动 smoke：pass，portable exe 能启动进程
+- 启动 smoke：pass，portable exe 启动后 DOM/UI 可见，不再只验证进程
 - 6 页面：pass，E2E 已覆盖
+- Desktop smoke：pass，验证 `盘姬`、`批量处理`、`设置中心`、`Windows 本地 CLI`、导航数量和非空截图
 
 ## BaiduPCS-Go
 
@@ -58,6 +59,7 @@ npm run smoke:local-cli
 - `npm run e2e`: pass，6 tests
 - `npm run smoke:local-cli`: diagnostic，除 transfer 测试链接外通过
 - `npm run package:win`: pass
+- `npm run smoke:desktop`: pass，portable exe DOM/UI 可见，renderer console 无 error
 
 ## 截图
 
@@ -70,3 +72,7 @@ npm run smoke:local-cli
 - `artifacts/screenshots/final-cleaned-copy.png`
 - `artifacts/screenshots/final-share-export.png`
 - `artifacts/screenshots/final-release-folder.png`
+- `artifacts/screenshots/fixed-desktop-home.png`
+- `artifacts/screenshots/fixed-desktop-batch.png`
+- `artifacts/screenshots/fixed-desktop-settings-cli.png`
+- `artifacts/screenshots/fixed-release-folder.png`

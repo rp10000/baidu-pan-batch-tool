@@ -3,7 +3,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const sourceTargets = ["src", "electron", "public", "index.html", "package.json"];
-const reportTargets = ["docs/bdpan-smoke-report.md", "docs/oauth-preflight-report.md", "docs/windows-cli-smoke-report.md"];
+const reportTargets = [
+  "docs/bdpan-smoke-report.md",
+  "docs/oauth-preflight-report.md",
+  "docs/windows-cli-smoke-report.md",
+  "artifacts/electron-runtime.log"
+];
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
 const blockedTerms = [
   "document.cookie",

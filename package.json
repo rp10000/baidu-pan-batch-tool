@@ -20,6 +20,7 @@
     "bridge:bdpan": "node scripts/bdpan-local-service.mjs",
     "smoke:bdpan": "node scripts/bdpan-smoke.mjs",
     "smoke:local-cli": "node scripts/local-cli-smoke.mjs",
+    "smoke:desktop": "node scripts/desktop-smoke.mjs",
     "assets:generate": "node scripts/generate-test-assets.mjs"
   },
   "build": {
