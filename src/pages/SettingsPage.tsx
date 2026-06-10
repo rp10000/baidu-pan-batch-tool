@@ -1,4 +1,4 @@
-import { Database, KeyRound, Palette, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { ClipboardCheck, Database, KeyRound, Palette, RotateCcw, SlidersHorizontal } from "lucide-react";
 import {
   ADAPTER_MODE_OPTIONS,
   CAPABILITY_LABELS,
@@ -45,6 +45,7 @@ export function SettingsPage() {
           onModeChange={storage.setRequestedMode}
           onRefresh={storage.refreshCapabilities}
         />
+        <OAuthPreparationCard />
         <ProcessingSettingsCard />
         <AdapterMatrixCard />
         <ActiveCapabilityCard mode={storage.activeMode} />
@@ -53,6 +54,49 @@ export function SettingsPage() {
         <CacheLogCard />
       </div>
     </section>
+  );
+}
+
+function OAuthPreparationCard() {
+  const copyText = (text: string) => {
+    void navigator.clipboard?.writeText(text);
+  };
+  const rows = [
+    ["App Key", "未填写"],
+    ["Secret Key", "未填写"],
+    ["Redirect URI", "未填写"],
+    ["回调模式", "未选择"],
+    ["测试目录授权", "未确认"],
+    ["测试分享链接", "未提供"]
+  ];
+
+  return (
+    <Card title="百度网盘 OAuth 准备状态" action={<ClipboardCheck size={18} />}>
+      <div className="setting-hero">
+        <KeyRound size={30} />
+        <div>
+          <b>未连接百度网盘</b>
+          <span>这里只展示准备状态，不执行真实登录、不请求授权、不读取本地凭据。</span>
+        </div>
+      </div>
+      {rows.map(([label, status]) => (
+        <div className="api-row" key={label}>
+          <span>{label}：</span>
+          <b>{status}</b>
+        </div>
+      ))}
+      <div className="dual-actions oauth-actions">
+        <button className="secondary-btn" type="button" onClick={() => copyText(".env.local.example")}>
+          复制 .env.local.example 路径
+        </button>
+        <button className="secondary-btn" type="button" onClick={() => copyText("npm run prep:oauth")}>
+          运行准备检查
+        </button>
+        <button className="secondary-btn" type="button" onClick={() => copyText("docs/user-input-required.md")}>
+          查看用户准备清单
+        </button>
+      </div>
+    </Card>
   );
 }
 

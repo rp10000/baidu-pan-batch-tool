@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "security:scan": "node scripts/security-scan.mjs",
+    "prep:oauth": "node scripts/oauth-preflight.mjs",
     "bridge:bdpan": "node scripts/bdpan-local-service.mjs",
     "smoke:bdpan": "node scripts/bdpan-smoke.mjs"
   },

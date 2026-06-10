@@ -1,8 +1,9 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const sourceTargets = ["src", "public", "index.html", "package.json"];
-const smokeReportTarget = "docs/bdpan-smoke-report.md";
+const reportTargets = ["docs/bdpan-smoke-report.md", "docs/oauth-preflight-report.md"];
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
 const blockedTerms = [
   "document.cookie",
@@ -19,7 +20,13 @@ const blockedTerms = [
   "shell:true",
   "exec(",
   "execFile(",
+  "chrome user data",
+  "提取ck",
+  "提取cookie",
+  "提取token",
   "抓包",
+  "HAR",
+  "hidden endpoint",
   "隐藏接口",
   "账号密码"
 ];
@@ -32,8 +39,12 @@ for (const target of sourceTargets) {
   }
 }
 
-if (existsSync(smokeReportTarget)) {
-  scanSmokeReport(smokeReportTarget);
+scanGitIndex();
+
+for (const reportTarget of reportTargets) {
+  if (existsSync(reportTarget)) {
+    scanReport(reportTarget);
+  }
 }
 
 if (findings.length > 0) {
@@ -68,20 +79,45 @@ function scanPath(path) {
   blockedTerms.forEach((term) => {
     const matched = /[\u4e00-\u9fff]/u.test(term)
       ? content.includes(term)
-      : lowerContent.includes(term.toLowerCase());
+      : term === "HAR"
+        ? /\bHAR\b/i.test(content)
+        : lowerContent.includes(term.toLowerCase());
     if (matched) {
       findings.push(`${path}: ${term}`);
     }
   });
 }
 
-function scanSmokeReport(path) {
+function scanGitIndex() {
+  const result = spawnSync("git", ["ls-files", "--cached"], {
+    encoding: "utf8",
+    windowsHide: true
+  });
+
+  if (result.status !== 0) {
+    return;
+  }
+
+  const trackedEnvFiles = result.stdout
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .filter((file) => /^\.env(?:\.|$)/.test(file))
+    .filter((file) => file !== ".env.example" && file !== ".env.local.example");
+
+  for (const file of trackedEnvFiles) {
+    findings.push(`${file}: env file is tracked by git`);
+  }
+}
+
+function scanReport(path) {
   const content = readFileSync(path, "utf8");
   const checks = [
     { pattern: /https?:\/\/pan\.baidu\.com\/s\/[^\s)]+/i, label: "完整分享链接" },
     { pattern: /\bpwd\s*[:=]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
     { pattern: /提取码\s*[:：]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
-    { pattern: /access[_-]?token|refresh[_-]?token|authorization[_-]?code/i, label: "授权字段" }
+    { pattern: /access[_-]?token|refresh[_-]?token|authorization[_-]?code/i, label: "授权字段" },
+    { pattern: /BAIDU_APP_SECRET\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[^\s]+/i, label: "真实应用密钥" },
+    { pattern: /TEST_SHARE_EXTRACT_CODE\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" }
   ];
 
   checks.forEach((check) => {

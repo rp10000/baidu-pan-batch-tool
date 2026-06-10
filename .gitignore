@@ -7,6 +7,13 @@ test-results/
 playwright-report/
 .env
 .env.*
+!.env.example
+!.env.local.example
+*.local.json
+auth-state.local.json
+credentials.local.json
+token*.json
+secret*.json
 *.log
 *.sqlite
 *.sqlite3
