@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.tauri/
+.env
+.env.*
+*.log
+*.sqlite
+*.sqlite3
+*.db
+exports/
+tmp/
+
+# ChatGPT Native Bridge handoff files are local workflow artifacts.
+.chatgpt-native/
