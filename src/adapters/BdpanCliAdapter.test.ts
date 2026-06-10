@@ -63,4 +63,20 @@ describe("BdpanCliAdapter", () => {
       error: "分享接口不可用 / 需开通"
     });
   });
+
+  it("normalizes bdpan display paths before later command use", async () => {
+    const runner = new FakeRunner([
+      {
+        exitCode: 0,
+        stdout:
+          "[{\"fs_id\":1,\"path\":\"我的应用数据/bdpan/panjie/raw/task-1/a.pdf\",\"server_filename\":\"a.pdf\",\"size\":12,\"isdir\":false}]",
+        stderr: ""
+      }
+    ]);
+    const adapter = new BdpanCliAdapter(runner);
+
+    const files = await adapter.listFiles({ remoteDirectory: "panjie/raw/task-1" });
+
+    expect(files[0]?.path).toBe("panjie/raw/task-1/a.pdf");
+  });
 });

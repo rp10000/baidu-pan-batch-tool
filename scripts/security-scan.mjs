@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const sourceTargets = ["src", "public", "index.html", "package.json"];
+const smokeReportTarget = "docs/bdpan-smoke-report.md";
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
 const blockedTerms = [
   "document.cookie",
@@ -29,6 +30,10 @@ for (const target of sourceTargets) {
   if (existsSync(target)) {
     scanPath(target);
   }
+}
+
+if (existsSync(smokeReportTarget)) {
+  scanSmokeReport(smokeReportTarget);
 }
 
 if (findings.length > 0) {
@@ -66,6 +71,22 @@ function scanPath(path) {
       : lowerContent.includes(term.toLowerCase());
     if (matched) {
       findings.push(`${path}: ${term}`);
+    }
+  });
+}
+
+function scanSmokeReport(path) {
+  const content = readFileSync(path, "utf8");
+  const checks = [
+    { pattern: /https?:\/\/pan\.baidu\.com\/s\/[^\s)]+/i, label: "完整分享链接" },
+    { pattern: /\bpwd\s*[:=]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
+    { pattern: /提取码\s*[:：]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
+    { pattern: /access[_-]?token|refresh[_-]?token|authorization[_-]?code/i, label: "授权字段" }
+  ];
+
+  checks.forEach((check) => {
+    if (check.pattern.test(content)) {
+      findings.push(`${path}: ${check.label}`);
     }
   });
 }

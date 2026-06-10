@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "security:scan": "node scripts/security-scan.mjs",
-    "bridge:bdpan": "node scripts/bdpan-local-service.mjs"
+    "bridge:bdpan": "node scripts/bdpan-local-service.mjs",
+    "smoke:bdpan": "node scripts/bdpan-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

@@ -153,11 +153,18 @@ function toRemoteFile(item: BdpanListItem, index: number): RemoteFile {
   return {
     id: String(item.fs_id ?? `${index + 1}`),
     name,
-    path: item.path ?? name,
+    path: normalizeCommandPath(item.path ?? name),
     size: item.size ?? 0,
     isDirectory: Boolean(item.isdir),
     category: typeof item.category === "string" ? item.category : undefined
   };
+}
+
+function normalizeCommandPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const prefixes = ["apps/bdpan/", "apps/", "我的应用数据/bdpan/", "我的应用数据/"];
+  const prefix = prefixes.find((item) => normalized.startsWith(item));
+  return prefix ? normalized.slice(prefix.length) : normalized;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

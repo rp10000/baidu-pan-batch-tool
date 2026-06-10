@@ -35,8 +35,11 @@ npm test
 npm run build
 npm run security:scan
 npm run bridge:bdpan
+npm run smoke:bdpan
 npm run dev
 ```
+
+`npm run smoke:bdpan` 会生成 `docs/bdpan-smoke-report.md`，用于记录 WSL、bdpan、登录状态和基础命令 smoke 结果。报告只写脱敏状态，不写真实分享链接、提取码或授权信息。
 
 ## 下一步
 
