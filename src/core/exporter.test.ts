@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { exportTasksToCsv } from "./exporter";
 
 describe("exportTasksToCsv", () => {
-  it("exports Chinese CSV with BOM and redacted errors", () => {
+  it("exports Chinese CSV with BOM and omits task error details", () => {
     const csv = exportTasksToCsv([
       {
         id: "task-1",
@@ -13,14 +13,14 @@ describe("exportTasksToCsv", () => {
         category: "documents",
         createdAt: "2026-06-10T00:00:00.000Z",
         updatedAt: "2026-06-10T00:00:00.000Z",
-        error: "access_token=abc123"
+        error: "upstream rejected the request"
       }
     ]);
 
     expect(csv.startsWith("\ufeff")).toBe(true);
     expect(csv).toContain("原链接");
     expect(csv).toContain("https://pan.baidu.com/s/1abc");
-    expect(csv).not.toContain("abc123");
-    expect(csv).toContain("[REDACTED_ACCESS_TOKEN]");
+    expect(csv).not.toContain("upstream rejected the request");
+    expect(csv).toContain("已省略");
   });
 });

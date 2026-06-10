@@ -1,4 +1,5 @@
 import { Database, KeyRound, Palette, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { MockBaiduAdapter } from "../adapters/MockBaiduAdapter";
 import { Card, StatusDot, Switch, Tag } from "../components/ui";
 
 export function SettingsPage() {
@@ -7,7 +8,7 @@ export function SettingsPage() {
       <div className="page-title">
         <div>
           <h2>设置中心</h2>
-          <p>账号授权、并发重试、默认路径、扫描规则、主题色、API 状态、日志与缓存</p>
+          <p>授权状态、连接状态、本地服务状态、接口能力状态、扫描规则、主题色、日志与缓存</p>
         </div>
       </div>
 
@@ -25,12 +26,12 @@ export function SettingsPage() {
 
 function AuthorizationCard() {
   return (
-    <Card title="账号授权状态" action={<Tag tone="green">mock 已授权</Tag>}>
+    <Card title="授权状态" action={<Tag tone="green">mock 已连接</Tag>}>
       <div className="setting-hero">
         <KeyRound size={34} />
         <div>
           <b>百度网盘 OAuth</b>
-          <span>真实凭证接入前仅展示授权占位，不保存账号密码。</span>
+          <span>真实授权接入前仅展示连接占位，本地只运行 mock 流程。</span>
         </div>
       </div>
       <div className="progress full-width"><span style={{ width: "23%" }} /></div>
@@ -80,19 +81,29 @@ function ThemeCard() {
 }
 
 function ApiStatusCard() {
+  const adapter = new MockBaiduAdapter();
   return (
-    <Card title="API 状态">
-      {["OAuth 授权", "文件列表", "转存分享", "创建分享", "扫描 worker"].map((api, index) => (
-        <div className="api-row" key={api}>
+    <Card title="接口能力状态">
+      {adapter.getCapabilityMatrix().map((api) => (
+        <div className="api-row" key={api.name}>
           <span>
-            <StatusDot tone={index === 0 ? "green" : "orange"} />
-            {api}
+            <StatusDot tone={api.status === "implemented_mock" ? "green" : "orange"} />
+            {api.name}
           </span>
-          <b>{index === 0 ? "mock 支持" : "待实测"}</b>
+          <b>{capabilityLabel(api.status)}</b>
         </div>
       ))}
     </Card>
   );
+}
+
+function capabilityLabel(status: ReturnType<MockBaiduAdapter["getCapabilityMatrix"]>[number]["status"]): string {
+  const labels = {
+    implemented_mock: "已实现 mock",
+    pending_integration: "待接入",
+    pending_verification: "待验证"
+  };
+  return labels[status];
 }
 
 function CacheLogCard() {

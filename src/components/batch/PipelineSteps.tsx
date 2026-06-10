@@ -1,11 +1,12 @@
-import { pipelineSteps } from "../../data/prototypeData";
+import type { ProcessingTask } from "../../domain/types";
+import { PIPELINE_LABELS, PIPELINE_ORDER } from "../../domain/pipeline";
 
-export function PipelineSteps() {
+export function PipelineSteps({ task }: { task?: ProcessingTask }) {
   return (
     <div className="pipeline">
-      {pipelineSteps.map((step) => (
-        <div className="pipe-step" key={step}>
-          {step}
+      {PIPELINE_ORDER.map((stage) => (
+        <div className={`pipe-step ${task?.stages[stage] ?? "pending"}`} key={stage}>
+          {PIPELINE_LABELS[stage]}
         </div>
       ))}
     </div>

@@ -3,6 +3,8 @@ dist/
 coverage/
 .vite/
 .tauri/
+test-results/
+playwright-report/
 .env
 .env.*
 *.log
@@ -11,6 +13,7 @@ coverage/
 *.db
 exports/
 tmp/
+artifacts/screenshots/
 
 # ChatGPT Native Bridge handoff files are local workflow artifacts.
 .chatgpt-native/

@@ -1,7 +1,13 @@
-import { processedFiles } from "../../data/prototypeData";
+import type { ProcessedFile } from "../../domain/types";
 import { StatusDot } from "../ui";
 
-export function ProcessedFileTable() {
+export function ProcessedFileTable({
+  files,
+  targetDirectory
+}: {
+  files: ProcessedFile[];
+  targetDirectory: string;
+}) {
   return (
     <div className="table-scroll compact">
       <table>
@@ -15,20 +21,35 @@ export function ProcessedFileTable() {
           </tr>
         </thead>
         <tbody>
-          {processedFiles.map((file) => (
+          {files.map((file) => (
             <tr key={file.originalName}>
               <td>{file.originalName}</td>
               <td>{file.category}</td>
               <td>{file.newName}</td>
-              <td>{file.targetPath}</td>
+              <td>{targetDirectory.replace("{分类}", file.category)}</td>
               <td>
-                <StatusDot tone={file.status === "done" ? "green" : "orange"} />
-                {file.status === "done" ? "已处理" : "需确认"}
+                <StatusDot tone={file.status === "failed" ? "red" : file.status === "skipped" ? "orange" : "green"} />
+                {statusLabel(file.status)}
               </td>
             </tr>
           ))}
+          {files.length === 0 && (
+            <tr>
+              <td colSpan={5}>暂无处理后文件，输入链接后开始处理。</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
+}
+
+function statusLabel(status: ProcessedFile["status"]): string {
+  const labels: Record<ProcessedFile["status"], string> = {
+    transferred: "已转存",
+    cleaned: "已清理",
+    failed: "失败",
+    skipped: "未转存"
+  };
+  return labels[status];
 }

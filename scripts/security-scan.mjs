@@ -1,32 +1,40 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
-const runtimeTargets = ["exports", "logs", "tmp"];
-const secretPatterns = [
-  /access_token\s*[:=]\s*(?!\[REDACTED_ACCESS_TOKEN\])\S+/i,
-  /refresh_token\s*[:=]\s*(?!\[REDACTED_REFRESH_TOKEN\])\S+/i,
-  /password\s*[:=]\s*(?!\[REDACTED_PASSWORD\])\S+/i,
-  /cookie\s*[:=]\s*(?!\[REDACTED_COOKIE\])\S+/i,
-  /BDUSS\s*=\s*(?!\[REDACTED_COOKIE\])\S+/i
+const sourceTargets = ["src", "public", "index.html", "package.json"];
+const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
+const blockedTerms = [
+  "document.cookie",
+  "localStorage",
+  "sessionStorage",
+  "access_token",
+  "refresh_token",
+  "password",
+  "passwd",
+  "cookie",
+  "browser scraping",
+  "抓包",
+  "隐藏接口",
+  "账号密码"
 ];
 
 const findings = [];
 
-for (const target of runtimeTargets) {
+for (const target of sourceTargets) {
   if (existsSync(target)) {
     scanPath(target);
   }
 }
 
 if (findings.length > 0) {
-  console.error("Sensitive runtime data found:");
+  console.error("Sensitive implementation terms found:");
   for (const finding of findings) {
     console.error(`- ${finding}`);
   }
   process.exit(1);
 }
 
-console.log("No sensitive runtime data found in exports/logs/tmp.");
+console.log("No sensitive implementation terms found in source targets.");
 
 function scanPath(path) {
   const stat = statSync(path);
@@ -41,10 +49,18 @@ function scanPath(path) {
     return;
   }
 
+  if (ignoredExtensions.has(extname(path).toLowerCase())) {
+    return;
+  }
+
   const content = readFileSync(path, "utf8");
-  secretPatterns.forEach((pattern) => {
-    if (pattern.test(content)) {
-      findings.push(path);
+  const lowerContent = content.toLowerCase();
+  blockedTerms.forEach((term) => {
+    const matched = /[\u4e00-\u9fff]/u.test(term)
+      ? content.includes(term)
+      : lowerContent.includes(term.toLowerCase());
+    if (matched) {
+      findings.push(`${path}: ${term}`);
     }
   });
 }

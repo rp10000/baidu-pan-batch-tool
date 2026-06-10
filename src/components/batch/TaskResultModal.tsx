@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import type { ProcessingTask } from "../../domain/types";
 import { NewShareInfoBox } from "./NewShareInfoBox";
 import { PipelineSteps } from "./PipelineSteps";
 import { ProcessedFileTable } from "./ProcessedFileTable";
@@ -6,14 +7,22 @@ import { ResultSummaryCards } from "./ResultSummaryCards";
 
 export function TaskResultModal({
   open,
+  task,
   onClose,
-  onCopy
+  onCopy,
+  onViewDetails,
+  onExportJson,
+  onExportCsv
 }: {
   open: boolean;
+  task?: ProcessingTask;
   onClose: () => void;
   onCopy: () => void;
+  onViewDetails: () => void;
+  onExportJson: () => void;
+  onExportCsv: () => void;
 }) {
-  if (!open) return null;
+  if (!open || !task) return null;
 
   return (
     <div className="modal-card result-modal" role="dialog" aria-label="任务完成弹窗">
@@ -22,18 +31,27 @@ export function TaskResultModal({
       </button>
       <div className="modal-title">
         <span className="success-mark">✓</span>
-        任务处理完成
+        任务完成
       </div>
-      <PipelineSteps />
-      <ResultSummaryCards />
-      <NewShareInfoBox onCopy={onCopy} />
-      <ProcessedFileTable />
+      <PipelineSteps task={task} />
+      <ResultSummaryCards task={task} />
+      <NewShareInfoBox shareResult={task.shareResult} onCopy={onCopy} />
+      <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />
       <div className="modal-actions">
-        <button className="secondary-btn" type="button" onClick={onClose}>
-          留在此页
+        <button className="secondary-btn" type="button" onClick={onViewDetails}>
+          查看详情
         </button>
-        <button className="primary-btn" type="button" onClick={onCopy}>
-          复制并继续
+        <button className="secondary-btn" type="button" onClick={onExportJson}>
+          导出 JSON
+        </button>
+        <button className="secondary-btn" type="button" onClick={onExportCsv}>
+          导出 CSV
+        </button>
+        <button className="secondary-btn" type="button" onClick={onCopy}>
+          复制分享信息
+        </button>
+        <button className="primary-btn" type="button" onClick={onClose}>
+          完成
         </button>
       </div>
     </div>

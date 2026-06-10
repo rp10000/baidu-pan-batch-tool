@@ -45,7 +45,7 @@ export function Sidebar({
         <span className="status-dot" />
         本地 mock 原型运行中
         <br />
-        不读取账号、密码、cookie 或 token
+        仅模拟授权与处理流程
       </div>
     </aside>
   );

@@ -6,11 +6,19 @@ import { ScanCheckPage } from "./pages/ScanCheckPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ShareExportPage } from "./pages/ShareExportPage";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
+import { TaskProvider } from "./state/taskStore";
 import type { PageId, ToastState } from "./types";
 
 export default function App() {
+  return (
+    <TaskProvider>
+      <AppContent />
+    </TaskProvider>
+  );
+}
+
+function AppContent() {
   const [activePage, setActivePage] = useState<PageId>("workbench");
-  const [batchShouldShowModal, setBatchShouldShowModal] = useState(false);
   const [toast, setToast] = useState<ToastState>({ visible: false, message: "" });
 
   const showToast = useCallback((message: string) => {
@@ -20,9 +28,6 @@ export default function App() {
 
   const navigate = useCallback((page: PageId) => {
     setActivePage(page);
-    if (page === "batch") {
-      setBatchShouldShowModal(true);
-    }
   }, []);
 
   return (
@@ -35,8 +40,7 @@ export default function App() {
       {activePage === "workbench" && <WorkbenchPage onNavigate={navigate} />}
       {activePage === "batch" && (
         <BatchProcessPage
-          showDefaultModal={batchShouldShowModal}
-          onDefaultModalShown={() => setBatchShouldShowModal(false)}
+          onNavigate={navigate}
           onToast={showToast}
         />
       )}

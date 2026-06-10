@@ -1,5 +1,3 @@
-import { redactSensitive } from "./redaction";
-
 export type TaskStatus = "pending" | "running" | "success" | "failed" | "manual_required" | "skipped";
 
 export interface ProcessingTask {
@@ -33,7 +31,7 @@ export function exportTasksToCsv(tasks: ProcessingTask[]): string {
     CSV_HEADERS.map(([, label]) => escapeCsv(label)).join(","),
     ...tasks.map((task) => {
       return CSV_HEADERS.map(([field]) => {
-        const value = field === "errorRedacted" ? redactSensitive(task.error ?? "") : task[field] ?? "";
+        const value = field === "errorRedacted" ? (task.error ? "已省略" : "") : task[field] ?? "";
         return escapeCsv(String(value));
       }).join(",");
     })

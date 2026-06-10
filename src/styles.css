@@ -601,6 +601,15 @@ button {
   font-size: 13px;
 }
 
+button.chip {
+  cursor: pointer;
+}
+
+.action-chip:not(.checked):hover {
+  border-color: rgba(132, 165, 255, 0.34);
+  background: rgba(52, 120, 255, 0.12);
+}
+
 .chip.checked::before {
   content: "✓";
   width: 20px;
@@ -612,6 +621,31 @@ button {
   background: var(--pink);
   font-size: 12px;
   font-weight: 900;
+}
+
+.input-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.input-stats span {
+  min-height: 50px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  padding: 10px;
+  border: 1px solid rgba(132, 165, 255, 0.16);
+  border-radius: 13px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+}
+
+.input-stats b {
+  color: #fff;
+  font-size: 19px;
 }
 
 .notice {
@@ -702,6 +736,10 @@ td {
 
 tr.selected td {
   background: rgba(52, 120, 255, 0.13);
+}
+
+tbody tr {
+  cursor: default;
 }
 
 .dot {
@@ -838,7 +876,7 @@ tr.selected td {
 }
 
 .pipe-step::before {
-  content: "✓";
+  content: "";
   width: 30px;
   height: 30px;
   display: grid;
@@ -848,6 +886,27 @@ tr.selected td {
   color: #062413;
   background: var(--green);
   font-weight: 900;
+}
+
+.pipe-step.pending::before {
+  content: "";
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pipe-step.running::before {
+  content: "•";
+  color: #fff;
+  background: var(--orange);
+}
+
+.pipe-step.completed::before {
+  content: "✓";
+}
+
+.pipe-step.failed::before {
+  content: "!";
+  color: #fff;
+  background: var(--red);
 }
 
 .summary-grid {
@@ -952,6 +1011,7 @@ tr.selected td {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .preview-panel {
@@ -1169,6 +1229,7 @@ tr.selected td {
   .kpi-grid,
   .form-grid,
   .summary-grid,
+  .input-stats,
   .quick-grid,
   .export-grid,
   .dual-actions {

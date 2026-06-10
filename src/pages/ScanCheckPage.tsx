@@ -1,8 +1,17 @@
 import { AlertTriangle, FileText, QrCode, ScanText, ShieldAlert } from "lucide-react";
-import { riskFiles } from "../data/prototypeData";
+import type { DetectedRisk, ProcessedFile } from "../domain/types";
+import { useTaskStore } from "../state/taskStore";
 import { Card, StatCard, StatusDot, Switch, Tag } from "../components/ui";
 
 export function ScanCheckPage() {
+  const { activeTask } = useTaskStore();
+  const files = activeTask?.processedFiles ?? [];
+  const risks = files.flatMap((file) => file.risks.map((risk) => ({ file, risk })));
+  const watermarks = risks.filter(({ risk }) => risk.type === "watermark").length;
+  const qrcodes = risks.filter(({ risk }) => risk.type === "qrcode").length;
+  const contactRisks = risks.filter(({ risk }) => ["phone", "email", "wechat", "qq"].includes(risk.type)).length;
+  const pendingRisks = risks.filter(({ risk }) => risk.action === "pending").length;
+
   return (
     <section className="page">
       <div className="page-title">
@@ -17,24 +26,24 @@ export function ScanCheckPage() {
       </div>
 
       <div className="kpi-grid">
-        <StatCard icon={<ShieldAlert />} label="高风险" value="611" tone="pink" />
-        <StatCard icon={<QrCode />} label="二维码" value="38" tone="orange" />
-        <StatCard icon={<FileText />} label="联系方式" value="124" tone="purple" />
-        <StatCard icon={<AlertTriangle />} label="待人工确认" value="17" tone="blue" />
+        <StatCard icon={<ShieldAlert />} label="水印风险" value={watermarks} tone="pink" />
+        <StatCard icon={<QrCode />} label="二维码" value={qrcodes} tone="orange" />
+        <StatCard icon={<FileText />} label="联系方式" value={contactRisks} tone="purple" />
+        <StatCard icon={<AlertTriangle />} label="待人工确认" value={pendingRisks} tone="blue" />
       </div>
 
       <div className="scan-grid">
         <Card title="风险文件列表" action={<Tag tone="pink">按风险排序</Tag>} className="span-2">
-          <RiskResultTable />
+          <RiskResultTable risks={risks} />
         </Card>
-        <FilePreviewPanel />
+        <FilePreviewPanel file={risks[0]?.file} risk={risks[0]?.risk} />
         <ScanRulePanel />
       </div>
     </section>
   );
 }
 
-function RiskResultTable() {
+function RiskResultTable({ risks }: { risks: Array<{ file: ProcessedFile; risk: DetectedRisk }> }) {
   return (
     <div className="table-scroll">
       <table>
@@ -48,16 +57,16 @@ function RiskResultTable() {
           </tr>
         </thead>
         <tbody>
-          {riskFiles.map((file) => (
-            <tr key={file.name} className={file.status === "high" ? "selected" : ""}>
-              <td>{file.name}</td>
-              <td>{file.type}</td>
-              <td>{file.risks.join(" / ")}</td>
+          {risks.map(({ file, risk }) => (
+            <tr key={risk.id} className={risk.confidence >= 90 ? "selected" : ""}>
+              <td>{file.newName}</td>
+              <td>{risk.label}</td>
+              <td>{risk.content}</td>
               <td>
-                <span className={`progress ${file.status === "high" ? "pink" : ""}`}>
-                  <span style={{ width: `${file.confidence}%` }} />
+                <span className={`progress ${risk.confidence >= 90 ? "pink" : ""}`}>
+                  <span style={{ width: `${risk.confidence}%` }} />
                 </span>
-                <em>{file.confidence}%</em>
+                <em>{risk.confidence}%</em>
               </td>
               <td>
                 <button className="text-btn" type="button">忽略</button>
@@ -65,21 +74,27 @@ function RiskResultTable() {
               </td>
             </tr>
           ))}
+          {risks.length === 0 && (
+            <tr>
+              <td colSpan={5}>当前任务没有风险命中项。</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
 }
 
-function FilePreviewPanel() {
+function FilePreviewPanel({ file, risk }: { file?: ProcessedFile; risk?: DetectedRisk }) {
   return (
-    <Card title="文件预览" action={<Tag tone="orange">命中二维码</Tag>}>
+    <Card title="文件预览" action={<Tag tone="orange">{risk?.label ?? "等待扫描"}</Tag>}>
       <div className="preview-panel">
         <img src="/brand-avatar.png" alt="风险文件预览" />
         <div className="scan-finding">
           <b>检测结果</b>
-          <span>命中内容：手机号 / URL / 二维码</span>
-          <span>建议：删除引流字段，遮盖二维码区域，保留原文件备份</span>
+          <span>文件：{file?.newName ?? "暂无文件"}</span>
+          <span>命中内容：{risk ? `${risk.label} / ${risk.content}` : "暂无命中"}</span>
+          <span>建议：保留原文件备份，模拟清理后进入人工复核。</span>
         </div>
       </div>
     </Card>

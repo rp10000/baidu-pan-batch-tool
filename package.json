@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
     "security:scan": "node scripts/security-scan.mjs"
   },
   "dependencies": {
@@ -17,9 +18,10 @@
     "react-dom": "^19.2.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
+    "@playwright/test": "^1.60.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "jsdom": "^27.3.0",
     "playwright": "^1.60.0",
     "typescript": "^5.9.3",

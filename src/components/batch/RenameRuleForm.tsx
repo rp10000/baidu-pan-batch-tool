@@ -1,22 +1,34 @@
 import { Card } from "../ui";
 
-export function RenameRuleForm() {
+export function RenameRuleForm({
+  renameRule,
+  targetDirectory,
+  onRenameRuleChange,
+  onTargetDirectoryChange
+}: {
+  renameRule: string;
+  targetDirectory: string;
+  onRenameRuleChange: (value: string) => void;
+  onTargetDirectoryChange: (value: string) => void;
+}) {
   return (
     <Card title="重命名规则">
       <div className="form-grid">
         <label>
-          <span>命名前缀</span>
-          <input className="input" value="资料" readOnly />
+          <span>文件名规则</span>
+          <input className="input" value={renameRule} onChange={(event) => onRenameRuleChange(event.target.value)} />
         </label>
         <label>
-          <span>编号规则</span>
-          <select className="select" value="date-index" disabled>
-            <option value="date-index">日期 + 序号</option>
-          </select>
+          <span>可用占位符</span>
+          <input className="input" value="{原文件名} {分类} {日期} {序号} {扩展名}" readOnly />
         </label>
         <label>
           <span>转存目录</span>
-          <input className="input" value="/自动归档/{分类}" readOnly />
+          <input
+            className="input"
+            value={targetDirectory}
+            onChange={(event) => onTargetDirectoryChange(event.target.value)}
+          />
         </label>
         <label>
           <span>重复文件</span>

@@ -6,12 +6,19 @@ export function TaskInputPanel({
   input,
   onInputChange,
   mode,
-  onModeChange
+  onModeChange,
+  stats
 }: {
   input: string;
   onInputChange: (value: string) => void;
   mode: "single" | "batch";
   onModeChange: (mode: "single" | "batch") => void;
+  stats: {
+    total: number;
+    valid: number;
+    duplicate: number;
+    invalid: number;
+  };
 }) {
   return (
     <Card
@@ -39,6 +46,13 @@ export function TaskInputPanel({
         onChange={(event) => onInputChange(event.target.value)}
         spellCheck={false}
       />
+
+      <div className="input-stats" aria-label="链接识别统计">
+        <span>总链接数 <b>{stats.total}</b></span>
+        <span>有效链接 <b>{stats.valid}</b></span>
+        <span>重复链接 <b>{stats.duplicate}</b></span>
+        <span>无效链接 <b>{stats.invalid}</b></span>
+      </div>
 
       <div className="drop-zone">
         <FileUp size={30} />

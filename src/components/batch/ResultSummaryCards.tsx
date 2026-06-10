@@ -1,28 +1,26 @@
-import { CheckCircle2, FileCheck2, ShieldAlert, Share2 } from "lucide-react";
+import { CheckCircle2, FileCheck2, PencilLine, ShieldAlert, Share2, Sparkles, XCircle } from "lucide-react";
+import type { ProcessingTask } from "../../domain/types";
 
-export function ResultSummaryCards() {
+export function ResultSummaryCards({ task }: { task: ProcessingTask }) {
+  const cards = [
+    { icon: <FileCheck2 size={18} />, label: "已识别文件", value: task.summary.recognizedFiles },
+    { icon: <CheckCircle2 size={18} />, label: "已分类", value: task.summary.classifiedFiles },
+    { icon: <ShieldAlert size={18} />, label: "去除水印", value: task.summary.removedWatermarks },
+    { icon: <Sparkles size={18} />, label: "清理引流内容", value: task.summary.removedTrafficItems },
+    { icon: <PencilLine size={18} />, label: "重命名文件", value: task.summary.renamedFiles },
+    { icon: <Share2 size={18} />, label: "成功转存", value: task.summary.transferredFiles },
+    { icon: <XCircle size={18} />, label: "失败", value: task.summary.failedFiles, warn: true }
+  ];
+
   return (
     <div className="summary-grid">
-      <div className="summary-card">
-        <FileCheck2 size={18} />
-        <span>识别链接</span>
-        <b>3</b>
-      </div>
-      <div className="summary-card">
-        <CheckCircle2 size={18} />
-        <span>成功转存</span>
-        <b>2</b>
-      </div>
-      <div className="summary-card warn">
-        <ShieldAlert size={18} />
-        <span>风险待确认</span>
-        <b>1</b>
-      </div>
-      <div className="summary-card">
-        <Share2 size={18} />
-        <span>新分享码</span>
-        <b>2</b>
-      </div>
+      {cards.map((card) => (
+        <div className={`summary-card ${card.warn ? "warn" : ""}`} key={card.label}>
+          {card.icon}
+          <span>{card.label}</span>
+          <b>{card.value}</b>
+        </div>
+      ))}
     </div>
   );
 }
