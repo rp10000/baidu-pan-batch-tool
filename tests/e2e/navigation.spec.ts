@@ -52,3 +52,19 @@ test("settings page shows oauth preparation card", async ({ page }) => {
 
   await page.screenshot({ path: "artifacts/screenshots/oauth-prep-settings-card.png", fullPage: true });
 });
+
+test("settings and batch pages show local cli mode", async ({ page }) => {
+  await page.goto("/");
+  const nav = page.locator('nav[aria-label="主导航"]');
+
+  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await expect(page.getByRole("heading", { name: "Windows 本地 CLI 模式" })).toBeVisible();
+  await expect(page.getByText("BaiduPCS-Go v4.0.1")).toBeVisible();
+  await page.screenshot({ path: "artifacts/screenshots/local-cli-settings-overview.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/screenshots/local-cli-capability-matrix.png", fullPage: true });
+
+  await page.getByRole("button", { name: "切换为此模式" }).click();
+  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await expect(page.getByText("当前接入：Windows 本地 CLI。支持文件管理、转存与分享能力检测", { exact: false })).toBeVisible();
+  await page.screenshot({ path: "artifacts/screenshots/local-cli-batch-ready-or-blocked.png", fullPage: true });
+});

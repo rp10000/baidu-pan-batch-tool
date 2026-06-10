@@ -13,7 +13,8 @@
     "security:scan": "node scripts/security-scan.mjs",
     "prep:oauth": "node scripts/oauth-preflight.mjs",
     "bridge:bdpan": "node scripts/bdpan-local-service.mjs",
-    "smoke:bdpan": "node scripts/bdpan-smoke.mjs"
+    "smoke:bdpan": "node scripts/bdpan-smoke.mjs",
+    "smoke:local-cli": "node scripts/local-cli-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

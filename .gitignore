@@ -21,6 +21,8 @@ secret*.json
 exports/
 tmp/
 artifacts/screenshots/
+artifacts/local-smoke/
+tools/baidu-cli/
 
 # ChatGPT Native Bridge handoff files are local workflow artifacts.
 .chatgpt-native/

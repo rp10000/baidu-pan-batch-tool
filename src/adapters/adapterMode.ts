@@ -1,5 +1,6 @@
 export type AdapterMode =
   | "mock"
+  | "windows_local_cli"
   | "windows_native_official"
   | "baidu_mcp"
   | "baidu_sdk"
@@ -45,6 +46,12 @@ export const ADAPTER_MODE_OPTIONS: AdapterModeMeta[] = [
     description: "Windows 桌面版主线，优先验证官方 API / MCP / SDK 能力。"
   },
   {
+    mode: "windows_local_cli",
+    label: "Windows 本地 CLI 模式",
+    badge: "推荐",
+    description: "优先用于自用 MVP，调用本机已安装的百度网盘 CLI，不读取浏览器凭据。"
+  },
+  {
     mode: "baidu_mcp",
     label: "百度网盘 MCP 模式",
     badge: "可选",
@@ -88,6 +95,7 @@ export const CAPABILITY_LABELS: Record<CapabilityKey, string> = {
 export const CAPABILITY_MATRIX: CapabilityMatrix = {
   checkLogin: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "needs_official_verification",
     baidu_sdk: "needs_official_verification",
     bdpan_wsl: "wsl_only",
@@ -95,6 +103,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   getUserInfo: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -102,6 +111,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   getQuota: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -109,6 +119,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   listFiles: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -116,6 +127,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   createDirectory: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -123,6 +135,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   transferSharedLink: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "needs_official_verification",
     baidu_sdk: "needs_official_verification",
     bdpan_wsl: "wsl_only",
@@ -130,6 +143,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   listTransferredFiles: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -137,6 +151,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   renameFile: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -144,6 +159,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   moveFile: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -151,6 +167,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   downloadFile: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "manual_required",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -158,6 +175,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   uploadFile: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "supported",
     baidu_sdk: "supported",
     bdpan_wsl: "wsl_only",
@@ -165,6 +183,7 @@ export const CAPABILITY_MATRIX: CapabilityMatrix = {
   },
   createShareLink: {
     windows_native_official: "needs_official_verification",
+    windows_local_cli: "supported",
     baidu_mcp: "needs_official_verification",
     baidu_sdk: "needs_official_verification",
     bdpan_wsl: "paid_required",

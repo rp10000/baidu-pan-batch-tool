@@ -42,7 +42,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshCapabilities = useCallback(async () => {
-    if (requestedMode !== "bdpan_wsl") {
+    if (requestedMode !== "bdpan_wsl" && requestedMode !== "windows_local_cli") {
       setActiveMode(requestedMode);
       setConnectionOk(requestedMode === "mock");
       setDisplayName(getAdapterModeMeta(requestedMode).label);
@@ -109,6 +109,7 @@ function modeMessage(mode: AdapterMode): string {
     windows_native_official: "Windows 原生官方能力待验证：分享链接转存尚未确认",
     baidu_mcp: "百度网盘 MCP 接入待实现：文件管理能力已列入验证矩阵",
     baidu_sdk: "百度网盘 SDK / OpenAPI 接入待实现：分享链接转存尚未确认",
+    windows_local_cli: "Windows 本地 CLI 模式：等待检测本机 CLI 与登录状态",
     bdpan_wsl: "bdpan WSL 高级模式：仅在已配置 WSL + bdpan 时启用",
     mock: "Mock 演示模式，不会真实转存"
   };

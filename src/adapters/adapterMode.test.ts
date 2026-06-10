@@ -5,6 +5,7 @@ describe("adapter modes", () => {
   it("puts Windows native official mode first and marks bdpan as advanced", () => {
     expect(ADAPTER_MODE_OPTIONS.map((mode) => mode.mode)).toEqual([
       "windows_native_official",
+      "windows_local_cli",
       "baidu_mcp",
       "baidu_sdk",
       "bdpan_wsl",

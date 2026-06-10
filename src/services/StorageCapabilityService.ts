@@ -23,6 +23,13 @@ export function resolveActiveStorageMode(input: {
     };
   }
 
+  if (input.requestedMode === "windows_local_cli" && !input.connectionOk) {
+    return {
+      activeMode: "mock",
+      message: `${input.message}；Windows 本地 CLI 不可用，当前回退 Mock`
+    };
+  }
+
   return {
     activeMode: input.requestedMode,
     message: input.message

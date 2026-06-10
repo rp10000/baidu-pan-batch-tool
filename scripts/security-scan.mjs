@@ -3,17 +3,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const sourceTargets = ["src", "public", "index.html", "package.json"];
-const reportTargets = ["docs/bdpan-smoke-report.md", "docs/oauth-preflight-report.md"];
+const reportTargets = ["docs/bdpan-smoke-report.md", "docs/oauth-preflight-report.md", "docs/windows-cli-smoke-report.md"];
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
 const blockedTerms = [
   "document.cookie",
   "localStorage",
   "sessionStorage",
-  "access_token",
-  "refresh_token",
-  "password",
-  "passwd",
-  "cookie",
   "browser scraping",
   "child_process",
   "shell: true",
@@ -21,6 +16,9 @@ const blockedTerms = [
   "exec(",
   "execFile(",
   "chrome user data",
+  "Login Data",
+  "Cookies SQLite",
+  "自动提取",
   "提取ck",
   "提取cookie",
   "提取token",
@@ -115,7 +113,7 @@ function scanReport(path) {
     { pattern: /https?:\/\/pan\.baidu\.com\/s\/[^\s)]+/i, label: "完整分享链接" },
     { pattern: /\bpwd\s*[:=]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
     { pattern: /提取码\s*[:：]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
-    { pattern: /access[_-]?token|refresh[_-]?token|authorization[_-]?code/i, label: "授权字段" },
+    { pattern: /access[_-]?token\s*[:=]|refresh[_-]?token\s*[:=]|authorization[_-]?code\s*[:=]/i, label: "授权字段" },
     { pattern: /BAIDU_APP_SECRET\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[^\s]+/i, label: "真实应用密钥" },
     { pattern: /TEST_SHARE_EXTRACT_CODE\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" }
   ];

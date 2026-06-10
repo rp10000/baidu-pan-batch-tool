@@ -46,6 +46,14 @@ export function SettingsPage() {
           onRefresh={storage.refreshCapabilities}
         />
         <OAuthPreparationCard />
+        <WindowsLocalCliCard
+          activeMode={storage.activeMode}
+          connectionOk={storage.connectionOk}
+          message={storage.message}
+          checking={storage.checking}
+          onModeChange={storage.setRequestedMode}
+          onRefresh={storage.refreshCapabilities}
+        />
         <ProcessingSettingsCard />
         <AdapterMatrixCard />
         <ActiveCapabilityCard mode={storage.activeMode} />
@@ -94,6 +102,60 @@ function OAuthPreparationCard() {
         </button>
         <button className="secondary-btn" type="button" onClick={() => copyText("docs/user-input-required.md")}>
           查看用户准备清单
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function WindowsLocalCliCard({
+  activeMode,
+  connectionOk,
+  message,
+  checking,
+  onModeChange,
+  onRefresh
+}: {
+  activeMode: AdapterMode;
+  connectionOk: boolean;
+  message: string;
+  checking: boolean;
+  onModeChange: (mode: AdapterMode) => void;
+  onRefresh: () => void;
+}) {
+  const selected = activeMode === "windows_local_cli";
+  const status = selected ? (connectionOk ? "已登录" : "需要人工 / 未连接 bridge") : "已检测到";
+
+  function detectLocalCli() {
+    onModeChange("windows_local_cli");
+    void onRefresh();
+  }
+
+  return (
+    <Card title="Windows 本地 CLI 模式" action={<Tag tone={connectionOk ? "green" : "orange"}>{status}</Tag>}>
+      <div className="setting-hero">
+        <KeyRound size={30} />
+        <div>
+          <b>BaiduPCS-Go v4.0.1</b>
+          <span>{selected ? message : "已下载到本机工具目录；CLI 登录和网盘操作只允许在测试目录内 smoke。"}</span>
+        </div>
+      </div>
+      <div className="api-row"><span>登录状态</span><b>{status}</b></div>
+      <div className="api-row"><span>风险等级</span><b>medium / 手动凭据模式仅标记</b></div>
+      <div className="api-row"><span>测试目录</span><b>盘姬测试/</b></div>
+      <div className="api-row"><span>核心能力</span><b>transfer / share 已检测，transfer 等待测试分享链接</b></div>
+      <div className="dual-actions oauth-actions">
+        <button className="secondary-btn" type="button" onClick={detectLocalCli}>
+          {checking ? "检测中" : "自动检测 CLI"}
+        </button>
+        <button className="secondary-btn" type="button" onClick={() => onModeChange("windows_local_cli")}>
+          切换为此模式
+        </button>
+        <button className="secondary-btn" type="button">
+          启动登录
+        </button>
+        <button className="secondary-btn" type="button">
+          运行 smoke
         </button>
       </div>
     </Card>

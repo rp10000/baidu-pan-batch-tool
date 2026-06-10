@@ -70,8 +70,8 @@ export function BatchProcessPage({
     setRunning(true);
     setModalOpen(false);
     let created = false;
-    const canUseBdpan = storage.activeMode === "bdpan_wsl" && storage.connectionOk;
-    const service = canUseBdpan
+    const canUseRealAdapter = (storage.activeMode === "bdpan_wsl" || storage.activeMode === "windows_local_cli") && storage.connectionOk;
+    const service = canUseRealAdapter
       ? new RealProcessingService(storage.getActiveAdapter())
       : new MockProcessingService();
     try {
@@ -167,7 +167,7 @@ export function BatchProcessPage({
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
           </Card>
-          <Card title="接入状态" action={<Tag tone={storage.activeMode === "bdpan_wsl" ? "blue" : "orange"}>{modeMeta.badge}</Tag>}>
+          <Card title="接入状态" action={<Tag tone={storage.activeMode === "windows_local_cli" ? "green" : storage.activeMode === "bdpan_wsl" ? "blue" : "orange"}>{modeMeta.badge}</Tag>}>
             <div className="rename-preview">
               <div>
                 <span>当前使用</span>
@@ -179,8 +179,14 @@ export function BatchProcessPage({
               </div>
               <div>
                 <span>Windows 主线</span>
-                <b>bdpan WSL 不可用不会阻塞桌面版主流程开发</b>
+                <b>{storage.activeMode === "windows_local_cli" ? "本地 CLI 可做自用 MVP；transfer 需用户测试分享链接" : "bdpan WSL 不可用不会阻塞桌面版主流程开发"}</b>
               </div>
+              {storage.activeMode === "windows_local_cli" && (
+                <div>
+                  <span>真实处理</span>
+                  <b>{storage.connectionOk ? "开始真实处理" : "当前 CLI 未连接，无法完成核心闭环"}</b>
+                </div>
+              )}
             </div>
           </Card>
           <RenameRuleForm
@@ -216,6 +222,9 @@ function modeNotice(mode: AdapterMode, message: string): string {
   }
   if (mode === "windows_native_official") {
     return "当前官方 Windows 原生接入尚未确认支持分享链接转存。可先使用 Mock 演示，或切换到 bdpan WSL 高级模式。";
+  }
+  if (mode === "windows_local_cli") {
+    return "当前接入：Windows 本地 CLI。支持文件管理、转存与分享能力检测；未登录或 bridge 未连接时不得伪造成功。";
   }
   if (mode === "bdpan_wsl") {
     return `bdpan WSL 高级模式：${message}`;

@@ -1,6 +1,6 @@
 # bdpan Smoke Report
 
-generatedAt: 2026-06-10T16:28:25.027Z
+generatedAt: 2026-06-10T17:37:40.635Z
 
 ## Environment
 
