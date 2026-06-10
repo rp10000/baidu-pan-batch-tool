@@ -41,19 +41,29 @@
 - 自动去除第三方水印。
 - 自动替换二维码/联系方式并重新分发。
 
-## BaiduAdapter 能力矩阵
+## StorageAdapter 能力矩阵
 
 每个能力必须明确为 `supported`、`unsupported`、`unknown_needs_manual_verification`：
 
 ```text
-can_oauth_login
-can_list_files
-can_mkdir
-can_transfer_shared_link
-can_create_share_link
-can_move_file
-can_get_share_file_metadata
+checkLogin
+transferSharedLink
+listFiles
+createDirectory
+renameFile
+moveFile
+downloadFile
+uploadFile
+createShareLink
 ```
+
+## Phase 3 接入路线
+
+- 优先评估并接入 `bdpan` CLI / `bdpan-storage`。
+- Windows 环境通过 WSL 调用 `bdpan`，前端只走本机桥接服务。
+- 所有自动化输出限制在 `我的应用数据 / bdpan / panjie`。
+- `bdpan share` 若不可用，任务结果进入“分享接口不可用 / 需开通”的降级状态。
+- 百度网盘 MCP 作为备用适配方向，不作为转存分享链接的首选路线。
 
 ## Success criteria
 
@@ -67,8 +77,8 @@ can_get_share_file_metadata
 
 ## Codex next actions
 
-1. 实测百度网盘开放平台能力矩阵。
-2. 接入真实 OAuth 前先实现系统凭据存储策略。
+1. 在 WSL 内安装并登录 `bdpan`，实测 `whoami / transfer / ls / rename / mv / share`。
+2. 将当前本机桥接服务迁入 Tauri 或 Electron 主进程。
 3. 将当前 mock 队列替换为真实 TaskQueue。
 4. SQLite schema 接入本地持久化。
 5. 二期接 OCR / QR 检测；替换功能保持默认关闭。

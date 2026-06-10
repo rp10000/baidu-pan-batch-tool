@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "security:scan": "node scripts/security-scan.mjs"
+    "security:scan": "node scripts/security-scan.mjs",
+    "bridge:bdpan": "node scripts/bdpan-local-service.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

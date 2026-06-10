@@ -1,3 +1,5 @@
+import type { AdapterMode } from "../adapters/StorageAdapter";
+
 export type TaskStatus =
   | "draft"
   | "parsing"
@@ -71,6 +73,8 @@ export interface ProcessedFile {
   category: string;
   status: "transferred" | "cleaned" | "failed" | "skipped";
   risks: DetectedRisk[];
+  remotePath?: string;
+  targetDirectory?: string;
 }
 
 export interface ShareResult {
@@ -85,11 +89,15 @@ export interface ProcessingTask {
   createdAt: string;
   status: TaskStatus;
   progress: number;
+  adapterMode?: AdapterMode;
+  rawDirectory?: string;
+  outputDirectory?: string;
   inputs: ShareInput[];
   options: ProcessingOptions;
   stages: Record<PipelineStage, PipelineStageStatus>;
   processedFiles: ProcessedFile[];
   shareResult?: ShareResult;
+  shareError?: string;
   summary: {
     recognizedFiles: number;
     classifiedFiles: number;

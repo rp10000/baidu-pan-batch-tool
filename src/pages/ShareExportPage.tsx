@@ -6,7 +6,7 @@ import { Card, StatCard, StatusDot, Tag } from "../components/ui";
 
 export function ShareExportPage({ onToast }: { onToast: (message: string) => void }) {
   const { tasks, activeTask, selectTask } = useTaskStore();
-  const shareTasks = tasks.filter((task) => task.shareResult);
+  const shareTasks = tasks.filter((task) => task.shareResult || task.shareError);
   const failedLinks = tasks.reduce((sum, task) => sum + task.summary.failedFiles, 0);
 
   function copyShareInfo(task = activeTask) {
@@ -79,8 +79,8 @@ function ShareTaskTable({
               <tr key={task.id} className={task.id === activeTaskId ? "selected" : ""} onClick={() => onSelect(task.id)}>
                 <td>{task.name}</td>
                 <td>
-                  <StatusDot tone={task.shareResult ? "green" : "orange"} />
-                  {task.shareResult ? "已生成" : "待生成"}
+                  <StatusDot tone={task.shareResult ? "green" : task.shareError ? "orange" : "orange"} />
+                  {task.shareResult ? "已生成" : task.shareError ? "需人工" : "待生成"}
                 </td>
                 <td>永久有效</td>
                 <td>{task.shareResult?.extractCode ?? "----"}</td>
@@ -110,7 +110,7 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
       <div className="form-grid one">
         <label>
           <span>新分享链接</span>
-          <input className="input" value={task?.shareResult?.newShareUrl ?? "等待生成"} readOnly />
+          <input className="input" value={task?.shareResult?.newShareUrl ?? task?.shareError ?? "等待生成"} readOnly />
         </label>
         <label>
           <span>提取码</span>

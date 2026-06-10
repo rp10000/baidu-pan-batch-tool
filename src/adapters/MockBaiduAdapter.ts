@@ -1,28 +1,69 @@
-import type { ShareResult } from "../domain/types";
-import type { BaiduAdapter, BaiduCapability } from "./BaiduAdapter";
+import type { RemoteFile, StorageAdapter, StorageCapabilities } from "./StorageAdapter";
 
-export class MockBaiduAdapter implements BaiduAdapter {
-  getCapabilityMatrix(): BaiduCapability[] {
+export class MockBaiduAdapter implements StorageAdapter {
+  readonly mode = "mock" as const;
+
+  async getCapabilities(): Promise<StorageCapabilities> {
+    return {
+      checkLogin: "supported",
+      transferSharedLink: "supported",
+      listFiles: "supported",
+      createDirectory: "supported",
+      renameFile: "supported",
+      moveFile: "supported",
+      downloadFile: "supported",
+      uploadFile: "supported",
+      createShareLink: "supported"
+    };
+  }
+
+  async checkConnection(): Promise<{ ok: boolean; displayName?: string; message: string }> {
+    return { ok: true, displayName: "Mock", message: "Mock 模式已连接" };
+  }
+
+  async transferSharedLink(input: {
+    targetDirectory: string;
+  }): Promise<{ ok: boolean; remotePath?: string; fileCount?: number }> {
+    return { ok: true, remotePath: input.targetDirectory, fileCount: 5 };
+  }
+
+  async listFiles(input: { remoteDirectory: string }): Promise<RemoteFile[]> {
     return [
-      { name: "OAuth 授权", status: "pending_integration" },
-      { name: "读取目录", status: "pending_integration" },
-      { name: "创建目录", status: "pending_integration" },
-      { name: "转存分享链接", status: "pending_verification" },
-      { name: "创建分享链接", status: "pending_verification" },
-      { name: "导出结果", status: "implemented_mock" },
-      { name: "本地扫描", status: "implemented_mock" }
+      { id: "mock-1", name: "课程先导片.mp4", path: `${input.remoteDirectory}/课程先导片.mp4`, size: 120, isDirectory: false },
+      { id: "mock-2", name: "资料讲义.pdf", path: `${input.remoteDirectory}/资料讲义.pdf`, size: 80, isDirectory: false }
     ];
   }
 
-  async transferSharedLink(fileIds: string[]): Promise<{ transferredFileIds: string[] }> {
-    return { transferredFileIds: fileIds.filter((_, index) => index !== fileIds.length - 1) };
+  async mkdir(): Promise<{ ok: boolean }> {
+    return { ok: true };
   }
 
-  async createShareLink(fileIds: string[]): Promise<ShareResult> {
-    const idPart = fileIds.join("-").slice(0, 8) || "empty";
+  async renameFile(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
+  async moveFile(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
+  async downloadFile(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
+  async uploadFile(): Promise<{ ok: boolean }> {
+    return { ok: true };
+  }
+
+  async createShareLink(input: {
+    remotePaths: string[];
+    periodDays: 0 | 1 | 7 | 30;
+  }): Promise<{ ok: boolean; shareUrl?: string; extractCode?: string; periodDays?: number }> {
+    const idPart = input.remotePaths.join("-").replaceAll("/", "-").slice(0, 8) || "empty";
     return {
-      newShareUrl: `https://pan.baidu.com/s/mock-${idPart}`,
-      extractCode: "A7K9"
+      ok: true,
+      shareUrl: `https://pan.baidu.com/s/mock-${idPart}`,
+      extractCode: "A7K9",
+      periodDays: input.periodDays
     };
   }
 }

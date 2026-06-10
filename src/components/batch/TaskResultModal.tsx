@@ -35,7 +35,17 @@ export function TaskResultModal({
       </div>
       <PipelineSteps task={task} />
       <ResultSummaryCards task={task} />
-      <NewShareInfoBox shareResult={task.shareResult} onCopy={onCopy} />
+      <div className="rename-preview modal-directory">
+        <div>
+          <span>转存目录</span>
+          <b>{task.rawDirectory ?? "Mock 输入目录"}</b>
+        </div>
+        <div>
+          <span>输出目录</span>
+          <b>{task.outputDirectory ?? task.options.targetDirectory}</b>
+        </div>
+      </div>
+      <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} />
       <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />
       <div className="modal-actions">
         <button className="secondary-btn" type="button" onClick={onViewDetails}>

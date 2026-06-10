@@ -13,6 +13,11 @@ const blockedTerms = [
   "passwd",
   "cookie",
   "browser scraping",
+  "child_process",
+  "shell: true",
+  "shell:true",
+  "exec(",
+  "execFile(",
   "抓包",
   "隐藏接口",
   "账号密码"

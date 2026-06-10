@@ -11,7 +11,9 @@ import { inputSample } from "../data/prototypeData";
 import type { ProcessingOptions } from "../domain/types";
 import { parseShareLinks } from "../domain/shareParser";
 import { MockProcessingService } from "../services/MockProcessingService";
+import { RealProcessingService } from "../services/RealProcessingService";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
+import { useStorageMode } from "../state/storageModeStore";
 import { useTaskStore } from "../state/taskStore";
 import type { PageId } from "../types";
 
@@ -25,7 +27,7 @@ const defaultOptions: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "/自动归档/{分类}"
+  targetDirectory: "panjie/output/{taskId}/{分类}"
 };
 
 export function BatchProcessPage({
@@ -41,6 +43,7 @@ export function BatchProcessPage({
   const [modalOpen, setModalOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const { activeTask, createTask, updateTask } = useTaskStore();
+  const storage = useStorageMode();
   const parsedInputs = useMemo(() => parseShareLinks(input), [input]);
   const inputStats = useMemo(
     () => ({
@@ -64,7 +67,10 @@ export function BatchProcessPage({
     setRunning(true);
     setModalOpen(false);
     let created = false;
-    const service = new MockProcessingService();
+    const service =
+      storage.activeMode === "bdpan_cli"
+        ? new RealProcessingService(storage.getActiveAdapter())
+        : new MockProcessingService();
     try {
       const task = await service.createAndRunTask(input, options, (snapshot) => {
         if (!created) {
@@ -76,7 +82,7 @@ export function BatchProcessPage({
       });
       updateTask(task);
       setModalOpen(true);
-      onToast(`任务完成，已生成新分享码 ${task.shareResult?.extractCode ?? "----"}`);
+      onToast(task.shareError ? `任务完成，${task.shareError}` : `任务完成，已生成新分享码 ${task.shareResult?.extractCode ?? "----"}`);
     } finally {
       setRunning(false);
     }
@@ -158,6 +164,22 @@ export function BatchProcessPage({
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
           </Card>
+          <Card title="真实接入状态" action={<Tag tone={storage.activeMode === "bdpan_cli" ? "green" : "orange"}>{modeLabel(storage.activeMode)}</Tag>}>
+            <div className="rename-preview">
+              <div>
+                <span>当前接入</span>
+                <b>{modeLabel(storage.activeMode)}</b>
+              </div>
+              <div>
+                <span>bdpan 状态</span>
+                <b>{storage.message}</b>
+              </div>
+              <div>
+                <span>输出目录</span>
+                <b>我的应用数据 / bdpan / panjie</b>
+              </div>
+            </div>
+          </Card>
           <RenameRuleForm
             renameRule={options.renameRule}
             targetDirectory={options.targetDirectory}
@@ -183,4 +205,14 @@ export function BatchProcessPage({
       </div>
     </section>
   );
+}
+
+function modeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    mock: "Mock",
+    bdpan_cli: "bdpan CLI",
+    baidu_mcp: "百度 MCP",
+    baidu_sdk: "百度 SDK"
+  };
+  return labels[mode] ?? mode;
 }

@@ -1,8 +1,10 @@
 import { Database, KeyRound, Palette, RotateCcw, SlidersHorizontal } from "lucide-react";
-import { MockBaiduAdapter } from "../adapters/MockBaiduAdapter";
+import type { AdapterMode, CapabilityStatus, StorageCapabilities } from "../adapters/StorageAdapter";
+import { useStorageMode } from "../state/storageModeStore";
 import { Card, StatusDot, Switch, Tag } from "../components/ui";
 
 export function SettingsPage() {
+  const storage = useStorageMode();
   return (
     <section className="page">
       <div className="page-title">
@@ -13,30 +15,64 @@ export function SettingsPage() {
       </div>
 
       <div className="settings-grid">
-        <AuthorizationCard />
+        <AuthorizationCard
+          mode={storage.requestedMode}
+          activeMode={storage.activeMode}
+          message={storage.message}
+          checking={storage.checking}
+          onModeChange={storage.setRequestedMode}
+          onRefresh={storage.refreshCapabilities}
+        />
         <ProcessingSettingsCard />
         <ScanSettingsCard />
         <ThemeCard />
-        <ApiStatusCard />
+        <ApiStatusCard capabilities={storage.capabilities} />
         <CacheLogCard />
       </div>
     </section>
   );
 }
 
-function AuthorizationCard() {
+function AuthorizationCard({
+  mode,
+  activeMode,
+  message,
+  checking,
+  onModeChange,
+  onRefresh
+}: {
+  mode: AdapterMode;
+  activeMode: AdapterMode;
+  message: string;
+  checking: boolean;
+  onModeChange: (mode: AdapterMode) => void;
+  onRefresh: () => void;
+}) {
   return (
-    <Card title="授权状态" action={<Tag tone="green">mock 已连接</Tag>}>
+    <Card title="接入模式" action={<Tag tone={activeMode === "mock" ? "orange" : "green"}>{modeLabel(activeMode)}</Tag>}>
       <div className="setting-hero">
         <KeyRound size={34} />
         <div>
-          <b>百度网盘 OAuth</b>
-          <span>真实授权接入前仅展示连接占位，本地只运行 mock 流程。</span>
+          <b>当前接入：{modeLabel(activeMode)}</b>
+          <span>{message}</span>
         </div>
       </div>
-      <div className="progress full-width"><span style={{ width: "23%" }} /></div>
-      <p className="muted">容量占用 2.34GB / 10GB</p>
-      <button className="secondary-btn full" type="button">清除本地授权状态</button>
+      <div className="mode-grid">
+        {(["mock", "bdpan_cli", "baidu_mcp", "baidu_sdk"] as AdapterMode[]).map((item) => (
+          <button
+            className={`mode-card ${mode === item ? "active" : ""}`}
+            key={item}
+            type="button"
+            onClick={() => onModeChange(item)}
+          >
+            {modeLabel(item)}
+          </button>
+        ))}
+      </div>
+      <p className="muted">所有自动化输出固定在：我的应用数据 / bdpan / panjie</p>
+      <button className="secondary-btn full" type="button" onClick={onRefresh}>
+        {checking ? "检测中" : "检测 bdpan / WSL / 登录状态"}
+      </button>
     </Card>
   );
 }
@@ -47,7 +83,7 @@ function ProcessingSettingsCard() {
       <div className="form-grid">
         <label><span>并发数</span><input className="input" value="3" readOnly /></label>
         <label><span>重试次数</span><input className="input" value="2" readOnly /></label>
-        <label><span>默认保存路径</span><input className="input" value="D:\\Panjie\\Output" readOnly /></label>
+        <label><span>工作目录</span><input className="input" value="我的应用数据 / bdpan / panjie" readOnly /></label>
         <label><span>重复文件策略</span><select className="select" value="skip" disabled><option value="skip">跳过已有文件</option></select></label>
       </div>
     </Card>
@@ -80,30 +116,54 @@ function ThemeCard() {
   );
 }
 
-function ApiStatusCard() {
-  const adapter = new MockBaiduAdapter();
+function ApiStatusCard({ capabilities }: { capabilities: StorageCapabilities }) {
+  const rows: Array<[keyof StorageCapabilities, string]> = [
+    ["checkLogin", "登录"],
+    ["transferSharedLink", "转存分享链接"],
+    ["listFiles", "读取文件列表"],
+    ["createDirectory", "创建目录"],
+    ["renameFile", "重命名"],
+    ["moveFile", "移动"],
+    ["downloadFile", "下载"],
+    ["uploadFile", "上传"],
+    ["createShareLink", "创建分享链接"]
+  ];
+
   return (
-    <Card title="接口能力状态">
-      {adapter.getCapabilityMatrix().map((api) => (
-        <div className="api-row" key={api.name}>
+    <Card title="能力矩阵">
+      {rows.map(([key, label]) => (
+        <div className="api-row" key={key}>
           <span>
-            <StatusDot tone={api.status === "implemented_mock" ? "green" : "orange"} />
-            {api.name}
+            <StatusDot tone={capabilities[key] === "supported" ? "green" : capabilities[key] === "paid_required" ? "orange" : "red"} />
+            {label}
           </span>
-          <b>{capabilityLabel(api.status)}</b>
+          <b>{capabilityLabel(capabilities[key])}</b>
         </div>
       ))}
     </Card>
   );
 }
 
-function capabilityLabel(status: ReturnType<MockBaiduAdapter["getCapabilityMatrix"]>[number]["status"]): string {
-  const labels = {
-    implemented_mock: "已实现 mock",
-    pending_integration: "待接入",
-    pending_verification: "待验证"
+function capabilityLabel(status: CapabilityStatus): string {
+  const labels: Record<CapabilityStatus, string> = {
+    supported: "可用",
+    unsupported: "不支持",
+    paid_required: "需开通",
+    wsl_required: "需 WSL / CLI",
+    login_required: "需登录",
+    unknown: "待检测"
   };
   return labels[status];
+}
+
+function modeLabel(mode: AdapterMode): string {
+  const labels: Record<AdapterMode, string> = {
+    mock: "Mock",
+    bdpan_cli: "bdpan CLI",
+    baidu_mcp: "百度 MCP",
+    baidu_sdk: "百度 SDK"
+  };
+  return labels[mode];
 }
 
 function CacheLogCard() {

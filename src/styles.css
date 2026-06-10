@@ -833,6 +833,7 @@ tbody tr {
 
 .quick-grid,
 .export-grid,
+.mode-grid,
 .dual-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -840,13 +841,19 @@ tbody tr {
 }
 
 .quick-grid button,
-.export-grid button {
+.export-grid button,
+.mode-grid button {
   min-height: 70px;
   border: 1px solid rgba(132, 165, 255, 0.2);
   border-radius: 15px;
   color: var(--text);
   background: linear-gradient(135deg, rgba(52, 120, 255, 0.22), rgba(255, 63, 145, 0.12));
   font-weight: 800;
+}
+
+.mode-card.active {
+  border-color: rgba(255, 63, 145, 0.64);
+  box-shadow: inset 0 0 0 1px rgba(255, 63, 145, 0.28), 0 14px 32px rgba(255, 63, 145, 0.12);
 }
 
 .pipeline {
@@ -1073,6 +1080,11 @@ tbody tr {
   padding: 14px;
 }
 
+.modal-directory {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 14px 0 0;
+}
+
 .rename-preview span,
 .rename-preview b {
   display: block;
@@ -1232,6 +1244,8 @@ tbody tr {
   .input-stats,
   .quick-grid,
   .export-grid,
+  .mode-grid,
+  .modal-directory,
   .dual-actions {
     grid-template-columns: 1fr;
   }
