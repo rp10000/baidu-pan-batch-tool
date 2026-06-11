@@ -71,28 +71,40 @@ function writeDraft(draft) {
 }
 
 function startLocalCliLogin() {
-  const cliPath = resolveBaiduPcsGoPath();
-  if (!cliPath) {
-    return { ok: false, error: "BaiduPCS-Go executable not found" };
+  const cli = resolveBaiduPcsGo();
+  if (!cli.path) {
+    return { ok: false, error: "内置 CLI 缺失，请重新安装客户端或运行 prepare:embedded-cli" };
   }
 
   log("local-cli-login-window", { command: "login" });
   try {
     const startedAt = new Date().toISOString();
-    const command = `start "BaiduPCS-Go 登录" cmd.exe /k ""${escapeCmd(cliPath)}" login"`;
-    const result = spawnSync("cmd.exe", ["/d", "/c", command], {
+    const loginScriptPath = writeLoginScript(cli.path);
+    const args = buildLoginStartArgs(loginScriptPath);
+    const result = spawnSync("powershell.exe", args, {
       encoding: "utf8",
+      timeout: 10000,
       windowsHide: false
     });
     const finishedAt = new Date().toISOString();
     const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
-    const exitCode = result.status ?? (result.error ? 127 : 0);
+    const exitCode = result.error?.message.includes("ETIMEDOUT") ? 124 : result.status ?? (result.error ? 127 : 0);
     if (exitCode !== 0) {
       const message = result.stderr || result.stdout || result.error?.message || "failed to open local cli login window";
-      recordCommandLog({ args: ["login"], exitCode, stdout: result.stdout || "", stderr: message, startedAt, finishedAt, durationMs });
+      recordCommandLog({
+        commandText: `powershell.exe ${args.map(quoteArg).join(" ")}`,
+        args: ["login"],
+        exitCode,
+        stdout: result.stdout || "",
+        stderr: message,
+        startedAt,
+        finishedAt,
+        durationMs
+      });
       return { ok: false, error: message };
     }
     recordCommandLog({
+      commandText: `powershell.exe ${args.map(quoteArg).join(" ")}`,
       args: ["login"],
       exitCode: 0,
       stdout: "visible login terminal opened",
@@ -101,7 +113,7 @@ function startLocalCliLogin() {
       finishedAt,
       durationMs
     });
-    return { ok: true, message: "visible login terminal opened" };
+    return { ok: true, message: "visible login terminal opened", scriptPath: loginScriptPath };
   } catch (error) {
     const message = error instanceof Error ? error.message : "failed to open local cli login window";
     recordCommandLog({ args: ["login"], exitCode: 127, stdout: "", stderr: message });
@@ -110,26 +122,27 @@ function startLocalCliLogin() {
 }
 
 async function inspectLocalCliRuntime() {
-  const cliPath = resolveBaiduPcsGoPath();
-  if (!cliPath) {
+  const cli = resolveBaiduPcsGo();
+  if (!cli.path) {
     return buildRuntimeSnapshot({
       bridgeOnline: true,
       cliPath: "",
+      cliSource: "missing",
       version: { exitCode: 127, stdout: "", stderr: "BaiduPCS-Go executable not found" }
     });
   }
 
   const [version, who, quota, rootList] = await Promise.all([
-    spawnLocalCli(cliPath, ["--version"], 5000),
-    spawnLocalCli(cliPath, ["who"], 10000),
-    spawnLocalCli(cliPath, ["quota"], 10000),
-    spawnLocalCli(cliPath, ["ls", "/"], 20000)
+    spawnLocalCli(cli.path, ["--version"], 5000),
+    spawnLocalCli(cli.path, ["who"], 10000),
+    spawnLocalCli(cli.path, ["quota"], 10000),
+    spawnLocalCli(cli.path, ["ls", "/"], 20000)
   ]);
   recordCommandLog({ args: ["--version"], ...version });
   recordCommandLog({ args: ["who"], ...who });
   recordCommandLog({ args: ["quota"], ...quota });
   recordCommandLog({ args: ["ls", "/"], ...rootList });
-  return buildRuntimeSnapshot({ bridgeOnline: true, cliPath, version, who, quota, rootList });
+  return buildRuntimeSnapshot({ bridgeOnline: true, cliPath: cli.path, cliSource: cli.source, version, who, quota, rootList });
 }
 
 function runLocalCli(command) {
@@ -138,13 +151,13 @@ function runLocalCli(command) {
     return { exitCode: 2, stdout: "", stderr: validation.error };
   }
 
-  const cliPath = resolveBaiduPcsGoPath();
-  if (!cliPath) {
+  const cli = resolveBaiduPcsGo();
+  if (!cli.path) {
     return { exitCode: 127, stdout: "", stderr: "BaiduPCS-Go executable not found" };
   }
 
   log("local-cli-run", { command: validation.args[0], argCount: validation.args.length });
-  return spawnLocalCli(cliPath, validation.args, validation.timeoutMs).then((result) => {
+  return spawnLocalCli(cli.path, validation.args, validation.timeoutMs).then((result) => {
     recordCommandLog({ args: validation.args, ...result });
     return result;
   });
@@ -171,15 +184,28 @@ function validateCommand(value) {
 }
 
 function resolveBaiduPcsGoPath() {
+  return resolveBaiduPcsGo().path;
+}
+
+function resolveBaiduPcsGo() {
   const candidates = [
-    path.join(process.resourcesPath, "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe"),
-    path.join(app.getAppPath(), "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe"),
-    path.join(process.cwd(), "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe")
+    { path: path.join(process.resourcesPath, "bin", "BaiduPCS-Go", "BaiduPCS-Go.exe"), source: "embedded" },
+    { path: path.join(app.getAppPath(), "resources", "bin", "BaiduPCS-Go", "BaiduPCS-Go.exe"), source: "embedded" },
+    { path: path.join(app.getAppPath(), "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe"), source: "embedded" },
+    { path: path.join(process.cwd(), "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe"), source: "embedded" }
   ];
-  return candidates.find((candidate) => fs.existsSync(candidate));
+  const embedded = candidates.find((candidate) => fs.existsSync(candidate.path));
+  if (embedded) return embedded;
+  const pathCli = findExecutable(["BaiduPCS-Go.exe", "BaiduPCS-Go"]);
+  if (pathCli) return { path: pathCli, source: "path" };
+  return { path: "", source: "missing" };
 }
 
 function spawnLocalCli(executablePath, args, timeoutMs) {
+  return spawnCommand(executablePath, args, timeoutMs);
+}
+
+function spawnCommand(executablePath, args, timeoutMs) {
   return new Promise((resolve) => {
     const startedAt = new Date().toISOString();
     const child = spawn(executablePath, args, {
@@ -213,33 +239,72 @@ function spawnLocalCli(executablePath, args, timeoutMs) {
   });
 }
 
-function checkDependencies() {
-  const baiduPath = resolveBaiduPcsGoPath();
+function writeLoginScript(cliPath) {
+  const runtimeDir = path.join(app.getPath("userData"), "runtime");
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  const scriptPath = path.join(runtimeDir, "baidupcs-login.cmd");
+  const cliDir = path.dirname(cliPath);
+  const script = [
+    "@echo off",
+    "chcp 65001 >nul",
+    "title BaiduPCS-Go 登录",
+    "echo 正在启动 BaiduPCS-Go 登录...",
+    "echo.",
+    `cd /d "${escapeCmdFile(cliDir)}"`,
+    `"${escapeCmdFile(cliPath)}" login`,
+    "echo.",
+    "echo 登录流程结束。请回到盘姬批量助手点击“重新检测”。",
+    "pause",
+    ""
+  ].join("\r\n");
+  fs.writeFileSync(scriptPath, script, "utf8");
+  return scriptPath;
+}
+
+function buildLoginStartArgs(loginScriptPath) {
+  const escapedScriptPath = escapePowerShellSingleQuoted(loginScriptPath);
+  return [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    `Start-Process -FilePath 'cmd.exe' -ArgumentList @('/k', '${escapedScriptPath}') -WindowStyle Normal`
+  ];
+}
+
+async function checkDependencies() {
+  const baidu = resolveBaiduPcsGo();
+  const ffmpeg = resolveFfmpeg();
   const tesseractPath = findExecutable(["tesseract.exe", "tesseract"]);
-  const ffmpegPath = findExecutable(["ffmpeg.exe", "ffmpeg"]);
   const python = findPython();
-  const opencv = python.path
-    ? runExecutable(python.path, [...python.prefixArgs, "-c", "import cv2; print(cv2.__version__)"], 10000)
-    : { exitCode: 127, stdout: "", stderr: "Python executable not found" };
+
+  const items = await Promise.all([
+    dependencyProbe("内置 BaiduPCS-Go", baidu.path, ["--version"], 5000, baidu.source, "core"),
+    dependencyProbe("FFmpeg", ffmpeg.path, ["-version"], 5000, ffmpeg.source, "recommended"),
+    Promise.resolve({
+      name: "Node Runtime",
+      status: "found",
+      path: process.execPath,
+      source: "embedded",
+      category: "core",
+      version: process.version,
+      exitCode: 0,
+      stdout: process.version,
+      stderr: ""
+    }),
+    dependencyProbe("Python", python.path, [...python.prefixArgs, "--version"], 5000, python.path ? "path" : "missing", "scan_runtime"),
+    dependencyProbe("Tesseract", tesseractPath, ["--version"], 5000, tesseractPath ? "path" : "missing", "scan_runtime"),
+    python.path
+      ? dependencyProbe("OpenCV", python.path, [...python.prefixArgs, "-c", "import cv2; print(cv2.__version__)"], 5000, "path", "scan_runtime")
+      : Promise.resolve(skippedDependency("OpenCV", "需要 Python")),
+    python.path
+      ? dependencyProbe("PaddleOCR", python.path, [...python.prefixArgs, "-c", "import paddleocr; print('available')"], 5000, "path", "scan_runtime")
+      : Promise.resolve(skippedDependency("PaddleOCR", "需要 Python"))
+  ]);
 
   return {
     checkedAt: new Date().toISOString(),
-    items: [
-      dependencyItem("BaiduPCS-Go", baiduPath, baiduPath ? runExecutable(baiduPath, ["--version"], 5000) : missing("BaiduPCS-Go executable not found")),
-      dependencyItem("Python", python.path, python.path ? runExecutable(python.path, [...python.prefixArgs, "--version"], 5000) : missing("Python executable not found")),
-      dependencyItem("Tesseract", tesseractPath, tesseractPath ? runExecutable(tesseractPath, ["--version"], 5000) : missing("tesseract executable not found")),
-      dependencyItem("FFmpeg", ffmpegPath, ffmpegPath ? runExecutable(ffmpegPath, ["-version"], 5000) : missing("ffmpeg executable not found")),
-      {
-        name: "Node Runtime",
-        status: "found",
-        path: process.execPath,
-        version: process.version,
-        exitCode: 0,
-        stdout: process.version,
-        stderr: ""
-      },
-      dependencyItem("OpenCV", python.path ? `${python.path} cv2` : "", opencv)
-    ]
+    items
   };
 }
 
@@ -323,20 +388,51 @@ function venvPythonPath(venvDir) {
   return path.join(venvDir, "Scripts", "python.exe");
 }
 
-function missing(message) {
-  return { exitCode: 127, stdout: "", stderr: message };
-}
-
-function dependencyItem(name, executablePath, result) {
+async function dependencyProbe(name, executablePath, args, timeoutMs, source, category) {
+  if (!executablePath) {
+    return {
+      name,
+      status: "missing",
+      path: "",
+      source: "missing",
+      category,
+      version: "",
+      exitCode: 127,
+      stdout: "",
+      stderr: `${name} not found`
+    };
+  }
+  const result = await spawnCommand(executablePath, args, timeoutMs);
+  recordCommandLog({
+    commandText: `${path.basename(executablePath)} ${args.map(quoteArg).join(" ")}`,
+    args: [name],
+    ...result
+  });
   const output = `${result.stdout}\n${result.stderr}`.trim();
   return {
     name,
-    status: result.exitCode === 0 ? "found" : "missing",
-    path: executablePath || "",
+    status: result.exitCode === 0 ? "found" : result.exitCode === 124 ? "timeout" : "error",
+    path: executablePath,
+    source,
+    category,
     version: firstLine(output),
     exitCode: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr
+  };
+}
+
+function skippedDependency(name, reason) {
+  return {
+    name,
+    status: "skipped_dependency_missing",
+    path: "",
+    source: "missing",
+    category: "scan_runtime",
+    version: "",
+    exitCode: 127,
+    stdout: "",
+    stderr: reason
   };
 }
 
@@ -357,6 +453,19 @@ function findPython() {
   const pyLauncher = findExecutable(["py.exe", "py"]);
   if (pyLauncher) return { path: pyLauncher, prefixArgs: ["-3"] };
   return { path: "", prefixArgs: [] };
+}
+
+function resolveFfmpeg() {
+  const candidates = [
+    { path: path.join(process.resourcesPath, "bin", "ffmpeg", "ffmpeg.exe"), source: "embedded" },
+    { path: path.join(app.getAppPath(), "resources", "bin", "ffmpeg", "ffmpeg.exe"), source: "embedded" },
+    { path: path.join(process.cwd(), "tools", "ffmpeg", "ffmpeg.exe"), source: "embedded" }
+  ];
+  const embedded = candidates.find((candidate) => fs.existsSync(candidate.path));
+  if (embedded) return embedded;
+  const pathFfmpeg = findExecutable(["ffmpeg.exe", "ffmpeg"]);
+  if (pathFfmpeg) return { path: pathFfmpeg, source: "path" };
+  return { path: "", source: "missing" };
 }
 
 function runExecutable(executablePath, args, timeoutMs) {
@@ -424,7 +533,7 @@ function recordCommandLog(entry) {
     startedAt: entry.startedAt ?? createdAt,
     finishedAt: entry.finishedAt ?? createdAt,
     durationMs: entry.durationMs ?? 0,
-    command: redactForLog(`BaiduPCS-Go ${entry.args.map(quoteArg).join(" ")}`),
+    command: redactForLog(entry.commandText ?? `BaiduPCS-Go ${entry.args.map(quoteArg).join(" ")}`),
     stdout: trimLog(redactForLog(entry.stdout)),
     stderr: trimLog(redactForLog(entry.stderr)),
     exitCode: entry.exitCode
@@ -461,6 +570,7 @@ function buildRuntimeSnapshot(input) {
     bridgeOnline: Boolean(input.bridgeOnline),
     cliInstalled,
     cliPath: input.cliPath ?? "",
+    cliSource: input.cliSource ?? "missing",
     cliVersion: firstLine(versionText),
     loginState,
     account,
@@ -578,6 +688,10 @@ function diffMs(startedAt, finishedAt) {
   return Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime());
 }
 
-function escapeCmd(value) {
+function escapeCmdFile(value) {
   return String(value).replace(/"/g, '""');
+}
+
+function escapePowerShellSingleQuoted(value) {
+  return String(value).replace(/'/g, "''");
 }

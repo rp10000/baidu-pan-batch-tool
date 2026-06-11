@@ -24,6 +24,21 @@ describe("LocalCliRuntimeService", () => {
     expect(isLoggedInAccount({ uid: "0", username: "masked" })).toBe(false);
   });
 
+  it("preserves embedded cli source in runtime snapshots", () => {
+    const snapshot = buildLocalCliRuntimeSnapshot({
+      bridgeOnline: true,
+      cliPath: "C:/Program Files/Panjie/resources/bin/BaiduPCS-Go/BaiduPCS-Go.exe",
+      cliSource: "embedded",
+      version: { exitCode: 0, stdout: "BaiduPCS-Go version v4.0.1", stderr: "" },
+      who: { exitCode: 1, stdout: "", stderr: "not logged in" },
+      quota: { exitCode: 1, stdout: "", stderr: "not logged in" },
+      rootList: { exitCode: 1, stdout: "", stderr: "not logged in" }
+    });
+
+    expect(snapshot.cliSource).toBe("embedded");
+    expect(snapshot.cliInstalled).toBe(true);
+  });
+
   it("parses Chinese and English account names", () => {
     expect(parseWhoOutput("当前帐号 uid: 12345, 用户名: demo_user, 性别: ")).toMatchObject({
       uid: "12345",

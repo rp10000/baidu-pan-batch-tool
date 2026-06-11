@@ -1,5 +1,5 @@
 import { Database, Info, KeyRound, ScanLine, Settings2, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ADAPTER_MODE_OPTIONS,
   CAPABILITY_LABELS,
@@ -25,8 +25,10 @@ const matrixRows: CapabilityKey[] = [
 
 interface DependencyItem {
   name: string;
-  status: "found" | "missing";
+  status: "found" | "missing" | "timeout" | "error" | "skipped_dependency_missing";
   path: string;
+  source?: "embedded" | "user_selected" | "path" | "missing";
+  category?: "core" | "recommended" | "scan_runtime";
   version: string;
   exitCode: number;
   stdout: string;
@@ -45,15 +47,6 @@ interface CommandLogEntry {
   exitCode: number;
 }
 
-interface ScanRuntimeInstallResult {
-  ok: boolean;
-  status: "installed" | "python_required" | "failed";
-  runtimeDir?: string;
-  startedAt: string;
-  finishedAt: string;
-  logs: string[];
-}
-
 export function SettingsPage() {
   const storage = useStorageMode();
   const draft = useBatchDraftStore();
@@ -61,14 +54,19 @@ export function SettingsPage() {
   const [loginOpening, setLoginOpening] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [dependencyChecking, setDependencyChecking] = useState(false);
-  const [scanRuntimeInstalling, setScanRuntimeInstalling] = useState(false);
   const [cacheClearing, setCacheClearing] = useState(false);
   const [dependencies, setDependencies] = useState<DependencyItem[]>([]);
   const [cacheResult, setCacheResult] = useState("");
-  const [scanRuntimeResult, setScanRuntimeResult] = useState<ScanRuntimeInstallResult | undefined>();
   const [developerLog, setDeveloperLog] = useState<{ cliPath: string; entries: CommandLogEntry[] } | undefined>();
   const cliRuntime = storage.cliRuntime;
   const cliStatus = cliStatusLabel(cliRuntime, storage.checking || detecting, storage.connectionOk);
+  const cliMissing = cliRuntime?.cliInstalled === false;
+
+  useEffect(() => {
+    if (!cliRuntime && !storage.checking && !detecting && getDesktopApi()?.inspectLocalCli) {
+      void redetectConnection();
+    }
+  }, []);
 
   async function refreshDeveloperLog() {
     const desktop = getDesktopApi();
@@ -94,7 +92,7 @@ export function SettingsPage() {
       return;
     }
     const result = await desktop.startLocalCliLogin();
-    setLoginMessage(result.ok ? "已打开可见登录终端。请在弹出的 BaiduPCS-Go 窗口内完成登录，然后点击“重新检测”。" : result.error ?? "无法打开登录终端");
+    setLoginMessage(result.ok ? "已打开可见登录终端。请在弹出的 BaiduPCS-Go 窗口内完成登录，然后点击“重新检测”。" : `打开登录终端失败：${result.error ?? "无法打开登录终端"}`);
     await refreshDeveloperLog();
     setLoginOpening(false);
   }
@@ -108,29 +106,14 @@ export function SettingsPage() {
       setDependencyChecking(false);
       return;
     }
-    const result = await desktop.checkDependencies();
-    setDependencies(result.items);
-    setDependencyChecking(false);
-  }
-
-  async function installScanRuntime() {
-    setScanRuntimeInstalling(true);
-    const desktop = getDesktopApi();
-    if (!desktop?.installScanRuntime) {
-      setScanRuntimeResult({
-        ok: false,
-        status: "failed",
-        startedAt: new Date().toISOString(),
-        finishedAt: new Date().toISOString(),
-        logs: ["当前不是桌面客户端，无法安装扫描运行时。"]
-      });
-      setScanRuntimeInstalling(false);
-      return;
+    try {
+      const result = await desktop.checkDependencies();
+      setDependencies(result.items);
+    } catch (error) {
+      setLoginMessage(`检查依赖失败：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally {
+      setDependencyChecking(false);
     }
-    const result = await desktop.installScanRuntime();
-    setScanRuntimeResult(result);
-    await checkDependencies();
-    setScanRuntimeInstalling(false);
   }
 
   async function clearCache() {
@@ -161,19 +144,21 @@ export function SettingsPage() {
             <KeyRound size={28} />
             <div>
               <b>Windows 本地 CLI</b>
-              <span>当前 CLI：{cliRuntime?.cliVersion || "BaiduPCS-Go"}</span>
+              <span>CLI：{cliRuntimeLabel(cliRuntime)}</span>
             </div>
           </div>
+          <div className="api-row"><span>来源</span><b>{cliSourceText(cliRuntime?.cliSource)}</b></div>
           <div className="api-row"><span>连接状态</span><b>{cliStatus}</b></div>
           <div className="api-row"><span>用户名</span><b>{cliRuntime?.account.username ?? (cliRuntime?.loginState === "not_logged_in" ? "未登录" : "未检测")}</b></div>
           <div className="api-row"><span>容量 / 已用</span><b>{cliRuntime?.account.quotaTotal || cliRuntime?.account.quotaUsed ? `${cliRuntime.account.quotaTotal ?? "未解析"} / ${cliRuntime.account.quotaUsed ?? "未解析"}` : "未检测"}</b></div>
           {cliRuntime?.message && <p className={`notice ${cliRuntime.loginState === "logged_in" ? "" : "error"}`}>{cliRuntime.message}</p>}
+          {cliMissing && <p className="notice error">内置 CLI 缺失，请重新安装客户端或运行 prepare:embedded-cli。</p>}
           <div className="dual-actions">
-            <button className="secondary-btn" type="button" onClick={() => void redetectConnection()}>
+            <button className="secondary-btn" type="button" onClick={() => void redetectConnection()} disabled={storage.checking || detecting}>
               {storage.checking || detecting ? "检测中" : "重新检测"}
             </button>
-            <button className="primary-btn" type="button" onClick={() => void startLogin()}>
-              {loginOpening ? "正在打开" : "启动登录"}
+            <button className="primary-btn" type="button" onClick={() => void startLogin()} disabled={loginOpening || cliMissing}>
+              {loginOpening ? "正在打开" : "打开登录终端"}
             </button>
           </div>
           {loginMessage && <p className="notice">{loginMessage}</p>}
@@ -191,26 +176,22 @@ export function SettingsPage() {
           <div className="api-row"><span>OCR / Tesseract</span><b>{dependencyLabel(dependencies, "Tesseract")}</b></div>
           <div className="api-row"><span>OpenCV</span><b>{dependencyLabel(dependencies, "OpenCV")}</b></div>
           <div className="api-row"><span>FFmpeg</span><b>{dependencyLabel(dependencies, "FFmpeg")}</b></div>
+          <div className="api-row"><span>PaddleOCR</span><b>{dependencyLabel(dependencies, "PaddleOCR")}</b></div>
           <div className="dual-actions">
-            <button className="secondary-btn" type="button" onClick={() => void installScanRuntime()}>
-              {scanRuntimeInstalling ? "安装中" : "安装扫描运行时"}
+            <button className="secondary-btn" type="button" disabled title="OCR 模型安装尚未完成真实接线">
+              完整扫描运行时后续提供
             </button>
-            <button className="secondary-btn" type="button" onClick={() => void checkDependencies()}>
+            <button className="secondary-btn" type="button" onClick={() => void checkDependencies()} disabled={dependencyChecking}>
               {dependencyChecking ? "检测中" : "检查依赖"}
             </button>
           </div>
-          {scanRuntimeResult && (
-            <div className={`notice ${scanRuntimeResult.ok ? "" : "error"}`}>
-              <b>{scanRuntimeStatus(scanRuntimeResult)}</b>
-              <pre className="log-block compact-log">{scanRuntimeResult.logs.join("\n")}</pre>
-            </div>
-          )}
+          {dependencyChecking && <p className="notice">正在逐项检查依赖，每项最多等待 5 秒。</p>}
           {dependencies.length > 0 && (
             <div className="dependency-list">
               {dependencies.map((item) => (
                 <div className="api-row" key={item.name}>
                   <span>{item.name}</span>
-                  <b>{item.status === "found" ? item.version || "已检测" : item.stderr || "未检测到"}</b>
+                  <b>{dependencyStatusText(item)}</b>
                 </div>
               ))}
             </div>
@@ -377,16 +358,32 @@ function cliStatusLabel(runtime: LocalCliRuntimeSnapshot | undefined, checking: 
   return "未验证";
 }
 
-function scanRuntimeStatus(result: ScanRuntimeInstallResult): string {
-  if (result.status === "python_required") return "需要先安装 Python";
-  if (result.ok) return "扫描运行时安装完成";
-  return "扫描运行时安装失败";
-}
-
 function dependencyLabel(items: DependencyItem[], name: string): string {
   const item = items.find((candidate) => candidate.name === name);
   if (!item) return "未检测";
-  return item.status === "found" ? "已检测" : "未检测到";
+  return dependencyStatusText(item);
+}
+
+function dependencyStatusText(item: DependencyItem): string {
+  if (item.status === "found") return item.version || "可用";
+  if (item.status === "timeout") return "检测超时";
+  if (item.status === "skipped_dependency_missing") return item.stderr || "需要前置依赖";
+  if (item.status === "error") return item.stderr || "检测错误";
+  return item.stderr || "未检测到";
+}
+
+function cliRuntimeLabel(runtime: LocalCliRuntimeSnapshot | undefined): string {
+  if (!runtime) return "BaiduPCS-Go";
+  if (!runtime.cliInstalled) return "内置 CLI 缺失";
+  const version = runtime.cliVersion.replace(/^BaiduPCS-Go\s+version\s*/i, "").trim();
+  return `${runtime.cliSource === "embedded" ? "内置 " : ""}BaiduPCS-Go${version ? ` ${version}` : ""}`;
+}
+
+function cliSourceText(source: LocalCliRuntimeSnapshot["cliSource"]): string {
+  if (source === "embedded") return "应用内置";
+  if (source === "user_selected") return "用户选择";
+  if (source === "path") return "系统 PATH";
+  return "未检测到";
 }
 
 function formatBytes(bytes: number): string {
@@ -407,7 +404,6 @@ function getDesktopApi():
       startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; message?: string }>;
       getLocalCliCommandLog?: () => Promise<{ cliPath: string; entries: CommandLogEntry[] }>;
       checkDependencies?: () => Promise<{ checkedAt: string; items: DependencyItem[] }>;
-      installScanRuntime?: () => Promise<ScanRuntimeInstallResult>;
       clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[]; skipped?: string[] }>;
     }
   | undefined {
@@ -419,7 +415,6 @@ function getDesktopApi():
         startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; message?: string }>;
         getLocalCliCommandLog?: () => Promise<{ cliPath: string; entries: CommandLogEntry[] }>;
         checkDependencies?: () => Promise<{ checkedAt: string; items: DependencyItem[] }>;
-        installScanRuntime?: () => Promise<ScanRuntimeInstallResult>;
         clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[]; skipped?: string[] }>;
       };
     }

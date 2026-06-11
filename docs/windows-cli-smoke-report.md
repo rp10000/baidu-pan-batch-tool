@@ -1,6 +1,6 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-11T13:37:35.425Z
+generatedAt: 2026-06-11T15:55:31.069Z
 status: manual_auth_required
 
 ## CLI

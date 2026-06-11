@@ -72,7 +72,7 @@ test("settings and batch pages show local cli mode", async ({ page }) => {
 
   await nav.getByRole("button", { name: /设置中心/ }).click();
   await expect(page.getByText("百度网盘连接")).toBeVisible();
-  await expect(page.getByText("当前 CLI：BaiduPCS-Go")).toBeVisible();
+  await expect(page.getByText(/CLI：.*BaiduPCS-Go/)).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-settings-overview.png", fullPage: true });
   await page.getByText("展开高级调试").click();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-capability-matrix.png", fullPage: true });

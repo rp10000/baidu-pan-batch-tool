@@ -13,6 +13,7 @@ export interface LocalCliRuntimeSnapshot {
   bridgeOnline: boolean;
   cliInstalled: boolean;
   cliPath: string;
+  cliSource?: "embedded" | "user_selected" | "path" | "missing";
   cliVersion: string;
   loginState: LocalCliLoginState;
   account: LocalCliAccountInfo;
@@ -23,6 +24,7 @@ export interface LocalCliRuntimeSnapshot {
 export interface LocalCliInspectInput {
   bridgeOnline: boolean;
   cliPath?: string;
+  cliSource?: "embedded" | "user_selected" | "path" | "missing";
   version?: Partial<LocalCliCommandResult>;
   who?: Partial<LocalCliCommandResult>;
   quota?: Partial<LocalCliCommandResult>;
@@ -46,6 +48,7 @@ export function buildLocalCliRuntimeSnapshot(input: LocalCliInspectInput): Local
     bridgeOnline: input.bridgeOnline,
     cliInstalled,
     cliPath: input.cliPath ?? "",
+    cliSource: input.cliSource ?? (input.cliPath ? "embedded" : "missing"),
     cliVersion: firstLine(versionText),
     loginState,
     account,

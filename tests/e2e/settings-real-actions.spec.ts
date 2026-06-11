@@ -8,6 +8,7 @@ test("settings actions are wired to desktop IPC and update visible state", async
         bridgeOnline: true,
         cliInstalled: true,
         cliPath: "C:/tools/BaiduPCS-Go.exe",
+        cliSource: "embedded",
         cliVersion: "BaiduPCS-Go version v4.0.1",
         loginState: "not_logged_in",
         account: { uid: "0" },
@@ -35,20 +36,14 @@ test("settings actions are wired to desktop IPC and update visible state", async
       checkDependencies: async () => ({
         checkedAt: "2026-06-11T00:00:00.000Z",
         items: [
-          { name: "BaiduPCS-Go", status: "found", path: "C:/tools/BaiduPCS-Go.exe", version: "BaiduPCS-Go version v4.0.1", exitCode: 0, stdout: "", stderr: "" },
+          { name: "内置 BaiduPCS-Go", status: "found", source: "embedded", category: "core", path: "C:/tools/BaiduPCS-Go.exe", version: "BaiduPCS-Go version v4.0.1", exitCode: 0, stdout: "", stderr: "" },
           { name: "Python", status: "missing", path: "", version: "Python executable not found", exitCode: 127, stdout: "", stderr: "Python executable not found" },
           { name: "Tesseract", status: "missing", path: "", version: "tesseract executable not found", exitCode: 127, stdout: "", stderr: "tesseract executable not found" },
           { name: "FFmpeg", status: "found", path: "C:/ffmpeg/bin/ffmpeg.exe", version: "ffmpeg version 7.0", exitCode: 0, stdout: "ffmpeg version 7.0", stderr: "" },
           { name: "Node Runtime", status: "found", path: "node.exe", version: "v24.12.0", exitCode: 0, stdout: "v24.12.0", stderr: "" },
-          { name: "OpenCV", status: "missing", path: "", version: "Python executable not found", exitCode: 127, stdout: "", stderr: "Python executable not found" }
+          { name: "OpenCV", status: "skipped_dependency_missing", path: "", version: "", exitCode: 127, stdout: "", stderr: "需要 Python" },
+          { name: "PaddleOCR", status: "skipped_dependency_missing", path: "", version: "", exitCode: 127, stdout: "", stderr: "需要 Python" }
         ]
-      }),
-      installScanRuntime: async () => ({
-        ok: false,
-        status: "python_required",
-        startedAt: "2026-06-11T00:00:00.000Z",
-        finishedAt: "2026-06-11T00:00:00.010Z",
-        logs: ["未检测到 Python。请先安装 Python 3.10+，再重新安装扫描运行时。"]
       }),
       clearCache: async () => ({
         ok: true,
@@ -68,18 +63,20 @@ test("settings actions are wired to desktop IPC and update visible state", async
   await page.getByRole("button", { name: "重新检测" }).click();
   await expect(page.getByText("未登录").first()).toBeVisible();
   await expect(page.getByText("BaiduPCS-Go 未登录或登录已失效")).toBeVisible();
+  await expect(page.locator(".api-row").filter({ hasText: "来源" })).toContainText("应用内置");
   await expect(page.getByText("CLI 已登录")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "启动登录" }).click();
+  await page.getByRole("button", { name: "打开登录终端" }).click();
   await expect(page.getByText("已打开可见登录终端")).toBeVisible();
 
   await page.getByRole("button", { name: "检查依赖" }).click();
   await expect(page.getByText("Python executable not found").first()).toBeVisible();
   await expect(page.getByText("Node Runtime")).toBeVisible();
+  await expect(page.getByText("PaddleOCR").first()).toBeVisible();
+  await expect(page.getByText("需要 Python").first()).toBeVisible();
 
-  await page.getByRole("button", { name: "安装扫描运行时" }).click();
-  await expect(page.getByText("需要先安装 Python")).toBeVisible();
-  await expect(page.getByText("未检测到 Python。请先安装 Python 3.10+")).toBeVisible();
+  const ocrInstall = page.getByRole("button", { name: "完整扫描运行时后续提供" });
+  await expect(ocrInstall).toBeDisabled();
 
   await page.getByRole("button", { name: "清理缓存" }).click();
   await expect(page.getByText(/删除文件 3 个，释放 2.00 KB；跳过锁定项 1 个/)).toBeVisible();

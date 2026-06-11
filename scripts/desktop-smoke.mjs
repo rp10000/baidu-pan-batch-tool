@@ -195,8 +195,15 @@ async function verifySettingsSimpleMode(page) {
   await page.getByText("容量 / 已用").waitFor({ timeout: 10_000 });
   await page.getByRole("button", { name: "检查依赖" }).click();
   await page.getByText("Node Runtime").waitFor({ timeout: 10_000 });
-  await page.getByText("BaiduPCS-Go", { exact: true }).first().waitFor({ timeout: 10_000 });
-  await page.getByRole("button", { name: "安装扫描运行时" }).waitFor({ timeout: 5_000 });
+  await page.getByText(/BaiduPCS-Go/).first().waitFor({ timeout: 10_000 });
+  const ocrButton = page.getByRole("button", { name: "完整扫描运行时后续提供" });
+  await ocrButton.waitFor({ timeout: 5_000 });
+  if (!(await ocrButton.isDisabled())) {
+    throw new Error("OCR install button must stay disabled until the installer is fully wired");
+  }
+  await page.screenshot({ path: path.join(screenshotsDir, "fix-embedded-cli-detected.png"), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotsDir, "fix-dependency-check-no-hang.png"), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotsDir, "fix-ocr-disabled-clear.png"), fullPage: true });
   await page.getByRole("button", { name: "清理缓存" }).click();
   await page.getByText(/删除文件 \d+ 个，释放/).waitFor({ timeout: 10_000 });
   const updateButton = page.getByRole("button", { name: "检查更新未接线" });

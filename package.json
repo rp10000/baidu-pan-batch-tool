@@ -9,8 +9,9 @@
     "build": "tsc && vite build",
     "desktop:dev": "npm run build && electron .",
     "desktop:watch": "electron .",
-    "package:win": "npm run build && electron-builder --win",
-    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "prepare:embedded-cli": "node scripts/prepare-embedded-cli.mjs",
+    "package:win": "npm run prepare:embedded-cli && npm run build && electron-builder --win",
+    "dist:win": "npm run prepare:embedded-cli && npm run build && electron-builder --win nsis portable",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -37,8 +38,8 @@
     ],
     "extraResources": [
       {
-        "from": "tools/baidu-cli",
-        "to": "tools/baidu-cli",
+        "from": "tools/baidu-cli/BaiduPCS-Go/BaiduPCS-Go-v4.0.1-windows-x64",
+        "to": "bin/BaiduPCS-Go",
         "filter": [
           "**/*"
         ]
