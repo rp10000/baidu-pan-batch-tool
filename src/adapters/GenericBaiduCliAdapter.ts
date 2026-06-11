@@ -3,8 +3,9 @@ import type { RemoteFile, StorageCapabilities } from "./StorageAdapter";
 import type { LocalCliCommandRunner } from "../services/LocalCliCommandRunner";
 import { normalizeCliError, redactCliOutput } from "../services/LocalCliCommandRunner";
 import { assertCliAbsolutePath, toCliAbsolutePath, toDisplayPath } from "../services/RemotePathService";
-import { classifyShareFailure, hasCliBusinessError, isInvalidWhoOutput } from "../services/ShareFailureClassifier";
+import { classifyShareFailure, hasCliBusinessError } from "../services/ShareFailureClassifier";
 import { verifyShareResult } from "../services/ShareVerificationService";
+import { buildLocalCliRuntimeSnapshot } from "../services/LocalCliRuntimeService";
 
 interface GenericBaiduCliProfile {
   name: string;
@@ -83,11 +84,26 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
   }
 
   async checkLogin(): Promise<{ ok: boolean; status: LocalCliStatus; displayName?: string; message: string }> {
-    const result = await this.runner.run({ args: this.profile.commands.who, timeoutMs: 10000 });
-    if (result.exitCode === 0 && !isInvalidWhoOutput(`${result.stdout}\n${result.stderr}`)) {
-      return { ok: true, status: "logged_in", displayName: "已脱敏", message: "Windows 本地 CLI 已登录" };
+    const [who, quota] = await Promise.all([
+      this.runner.run({ args: this.profile.commands.who, timeoutMs: 10000 }),
+      this.runner.run({ args: ["quota"], timeoutMs: 10000 })
+    ]);
+    const runtime = buildLocalCliRuntimeSnapshot({
+      bridgeOnline: true,
+      cliPath: this.name,
+      version: { exitCode: 0, stdout: this.name, stderr: "" },
+      who,
+      quota
+    });
+    if (runtime.loginState === "logged_in") {
+      return {
+        ok: true,
+        status: "logged_in",
+        displayName: runtime.account.username ?? "已登录",
+        message: "Windows 本地 CLI 已登录"
+      };
     }
-    return { ok: false, status: "not_logged_in", message: normalizeCliError(result.stderr || result.stdout) };
+    return { ok: false, status: "not_logged_in", message: normalizeCliError(runtime.message) };
   }
 
   async checkConnection(): Promise<{ ok: boolean; displayName?: string; message: string }> {

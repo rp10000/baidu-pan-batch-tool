@@ -28,7 +28,7 @@ if (command === "who") {
     console.error("未登录");
     process.exit(1);
   }
-  console.log("uid: <redacted>");
+  console.log("uid: 10001, username: redacted");
   process.exit(0);
 }
 

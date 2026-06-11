@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { log } from "./diagnostics.js";
 
 const allowedLocalCliCommands = new Set(["--version", "help", "who", "login", "quota", "ls", "mkdir", "cd", "upload", "mv", "transfer", "share"]);
@@ -15,12 +15,14 @@ export function registerIpc() {
   }));
 
   ipcMain.handle("local-cli:run", async (_event, command) => runLocalCli(command));
+  ipcMain.handle("local-cli:inspect", () => inspectLocalCliRuntime());
   ipcMain.handle("local-cli:start-login", () => startLocalCliLogin());
   ipcMain.handle("local-cli:get-command-log", () => ({
     cliPath: resolveBaiduPcsGoPath() ?? "",
     entries: commandHistory.slice(-30)
   }));
   ipcMain.handle("system:check-dependencies", () => checkDependencies());
+  ipcMain.handle("scan-runtime:install", () => installScanRuntime());
   ipcMain.handle("cache:clear", () => clearAppCache());
   ipcMain.handle("draft:read", () => readDraft());
   ipcMain.handle("draft:write", (_event, draft) => writeDraft(draft));
@@ -76,26 +78,58 @@ function startLocalCliLogin() {
 
   log("local-cli-login-window", { command: "login" });
   try {
-    const args = ["/d", "/k", `"${cliPath}" login`];
-    const child = spawn("cmd.exe", args, {
-      detached: true,
-      shell: false,
-      stdio: "ignore",
+    const startedAt = new Date().toISOString();
+    const command = `start "BaiduPCS-Go 登录" cmd.exe /k ""${escapeCmd(cliPath)}" login"`;
+    const result = spawnSync("cmd.exe", ["/d", "/c", command], {
+      encoding: "utf8",
       windowsHide: false
     });
-    child.unref();
+    const finishedAt = new Date().toISOString();
+    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+    const exitCode = result.status ?? (result.error ? 127 : 0);
+    if (exitCode !== 0) {
+      const message = result.stderr || result.stdout || result.error?.message || "failed to open local cli login window";
+      recordCommandLog({ args: ["login"], exitCode, stdout: result.stdout || "", stderr: message, startedAt, finishedAt, durationMs });
+      return { ok: false, error: message };
+    }
     recordCommandLog({
       args: ["login"],
       exitCode: 0,
-      stdout: `opened visible login window, pid=${child.pid ?? "unknown"}`,
-      stderr: ""
+      stdout: "visible login terminal opened",
+      stderr: "",
+      startedAt,
+      finishedAt,
+      durationMs
     });
-    return { ok: true, pid: child.pid };
+    return { ok: true, message: "visible login terminal opened" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "failed to open local cli login window";
     recordCommandLog({ args: ["login"], exitCode: 127, stdout: "", stderr: message });
     return { ok: false, error: message };
   }
+}
+
+async function inspectLocalCliRuntime() {
+  const cliPath = resolveBaiduPcsGoPath();
+  if (!cliPath) {
+    return buildRuntimeSnapshot({
+      bridgeOnline: true,
+      cliPath: "",
+      version: { exitCode: 127, stdout: "", stderr: "BaiduPCS-Go executable not found" }
+    });
+  }
+
+  const [version, who, quota, rootList] = await Promise.all([
+    spawnLocalCli(cliPath, ["--version"], 5000),
+    spawnLocalCli(cliPath, ["who"], 10000),
+    spawnLocalCli(cliPath, ["quota"], 10000),
+    spawnLocalCli(cliPath, ["ls", "/"], 20000)
+  ]);
+  recordCommandLog({ args: ["--version"], ...version });
+  recordCommandLog({ args: ["who"], ...who });
+  recordCommandLog({ args: ["quota"], ...quota });
+  recordCommandLog({ args: ["ls", "/"], ...rootList });
+  return buildRuntimeSnapshot({ bridgeOnline: true, cliPath, version, who, quota, rootList });
 }
 
 function runLocalCli(command) {
@@ -147,6 +181,7 @@ function resolveBaiduPcsGoPath() {
 
 function spawnLocalCli(executablePath, args, timeoutMs) {
   return new Promise((resolve) => {
+    const startedAt = new Date().toISOString();
     const child = spawn(executablePath, args, {
       shell: false,
       windowsHide: true
@@ -155,7 +190,8 @@ function spawnLocalCli(executablePath, args, timeoutMs) {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill();
-      resolve({ exitCode: 124, stdout, stderr: "local cli command timed out" });
+      const finishedAt = new Date().toISOString();
+      resolve({ exitCode: 124, stdout, stderr: "local cli command timed out", startedAt, finishedAt, durationMs: diffMs(startedAt, finishedAt) });
     }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
@@ -166,11 +202,13 @@ function spawnLocalCli(executablePath, args, timeoutMs) {
     });
     child.on("error", (error) => {
       clearTimeout(timer);
-      resolve({ exitCode: 127, stdout, stderr: error.message });
+      const finishedAt = new Date().toISOString();
+      resolve({ exitCode: 127, stdout, stderr: error.message, startedAt, finishedAt, durationMs: diffMs(startedAt, finishedAt) });
     });
     child.on("close", (exitCode) => {
       clearTimeout(timer);
-      resolve({ exitCode: exitCode ?? 1, stdout, stderr });
+      const finishedAt = new Date().toISOString();
+      resolve({ exitCode: exitCode ?? 1, stdout, stderr, startedAt, finishedAt, durationMs: diffMs(startedAt, finishedAt) });
     });
   });
 }
@@ -179,15 +217,16 @@ function checkDependencies() {
   const baiduPath = resolveBaiduPcsGoPath();
   const tesseractPath = findExecutable(["tesseract.exe", "tesseract"]);
   const ffmpegPath = findExecutable(["ffmpeg.exe", "ffmpeg"]);
-  const pythonPath = findExecutable(["python.exe", "python"]);
-  const opencv = pythonPath
-    ? runExecutable(pythonPath, ["-c", "import cv2; print(cv2.__version__)"], 10000)
-    : { exitCode: 127, stdout: "", stderr: "python executable not found" };
+  const python = findPython();
+  const opencv = python.path
+    ? runExecutable(python.path, [...python.prefixArgs, "-c", "import cv2; print(cv2.__version__)"], 10000)
+    : { exitCode: 127, stdout: "", stderr: "Python executable not found" };
 
   return {
     checkedAt: new Date().toISOString(),
     items: [
       dependencyItem("BaiduPCS-Go", baiduPath, baiduPath ? runExecutable(baiduPath, ["--version"], 5000) : missing("BaiduPCS-Go executable not found")),
+      dependencyItem("Python", python.path, python.path ? runExecutable(python.path, [...python.prefixArgs, "--version"], 5000) : missing("Python executable not found")),
       dependencyItem("Tesseract", tesseractPath, tesseractPath ? runExecutable(tesseractPath, ["--version"], 5000) : missing("tesseract executable not found")),
       dependencyItem("FFmpeg", ffmpegPath, ffmpegPath ? runExecutable(ffmpegPath, ["-version"], 5000) : missing("ffmpeg executable not found")),
       {
@@ -199,9 +238,89 @@ function checkDependencies() {
         stdout: process.version,
         stderr: ""
       },
-      dependencyItem("OpenCV", pythonPath ? "python cv2" : "", opencv)
+      dependencyItem("OpenCV", python.path ? `${python.path} cv2` : "", opencv)
     ]
   };
+}
+
+function installScanRuntime() {
+  const startedAt = new Date().toISOString();
+  const logs = [];
+  const python = findPython();
+  if (!python.path) {
+    return {
+      ok: false,
+      status: "python_required",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      logs: ["未检测到 Python。请先安装 Python 3.10+，再重新安装扫描运行时。"]
+    };
+  }
+
+  const runtimeDir = path.join(app.getPath("userData"), "scan-runtime");
+  const venvDir = path.join(runtimeDir, ".venv");
+  fs.mkdirSync(runtimeDir, { recursive: true });
+
+  const steps = [
+    {
+      label: "创建 Python 虚拟环境",
+      run: () => runExecutable(python.path, [...python.prefixArgs, "-m", "venv", venvDir], 180000)
+    },
+    {
+      label: "升级 pip",
+      run: () => runExecutable(venvPythonPath(venvDir), ["-m", "pip", "install", "--upgrade", "pip"], 180000)
+    },
+    {
+      label: "安装 OpenCV / Pillow / NumPy",
+      run: () => runExecutable(venvPythonPath(venvDir), ["-m", "pip", "install", "opencv-python", "pillow", "numpy"], 600000)
+    }
+  ];
+
+  for (const step of steps) {
+    const result = step.run();
+    logs.push(stepLog(step.label, result));
+    if (result.exitCode !== 0) {
+      return {
+        ok: false,
+        status: "failed",
+        runtimeDir,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        logs
+      };
+    }
+  }
+
+  const wingetPath = findExecutable(["winget.exe", "winget"]);
+  const tesseractPath = findExecutable(["tesseract.exe", "tesseract"]);
+  const ffmpegPath = findExecutable(["ffmpeg.exe", "ffmpeg"]);
+  if (wingetPath && !tesseractPath) {
+    logs.push(stepLog("安装 Tesseract", runExecutable(wingetPath, ["install", "--id", "UB-Mannheim.TesseractOCR", "--silent", "--accept-package-agreements", "--accept-source-agreements"], 600000)));
+  }
+  if (wingetPath && !ffmpegPath) {
+    logs.push(stepLog("安装 FFmpeg", runExecutable(wingetPath, ["install", "--id", "Gyan.FFmpeg", "--silent", "--accept-package-agreements", "--accept-source-agreements"], 600000)));
+  }
+  if (!wingetPath && (!tesseractPath || !ffmpegPath)) {
+    logs.push("未检测到 winget，Tesseract / FFmpeg 需用户手动安装后重新检查依赖。");
+  }
+
+  return {
+    ok: true,
+    status: "installed",
+    runtimeDir,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    logs
+  };
+}
+
+function stepLog(label, result) {
+  const output = redactForLog(`${result.stdout}\n${result.stderr}`).trim();
+  return `${label}: exitCode=${result.exitCode}${output ? `\n${trimLog(output)}` : ""}`;
+}
+
+function venvPythonPath(venvDir) {
+  return path.join(venvDir, "Scripts", "python.exe");
 }
 
 function missing(message) {
@@ -232,6 +351,14 @@ function findExecutable(names) {
   return "";
 }
 
+function findPython() {
+  const pythonPath = findExecutable(["python.exe", "python", "python3"]);
+  if (pythonPath) return { path: pythonPath, prefixArgs: [] };
+  const pyLauncher = findExecutable(["py.exe", "py"]);
+  if (pyLauncher) return { path: pyLauncher, prefixArgs: ["-3"] };
+  return { path: "", prefixArgs: [] };
+}
+
 function runExecutable(executablePath, args, timeoutMs) {
   return spawnSyncUtf8(executablePath, args, timeoutMs);
 }
@@ -249,12 +376,22 @@ function spawnSyncUtf8(executablePath, args, timeoutMs) {
   };
 }
 
-function clearAppCache() {
+async function clearAppCache() {
   const userData = app.getPath("userData");
   const targets = ["Cache", "Code Cache", "GPUCache", "DawnCache", "blob_storage"].map((name) => path.join(userData, name));
   let filesDeleted = 0;
   let bytesFreed = 0;
   const errors = [];
+  const skipped = [];
+
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearStorageData({
+      storages: ["appcache", "shadercache", "serviceworkers", "cachestorage"]
+    });
+  } catch (error) {
+    skipped.push(error instanceof Error ? error.message : "Electron session cache clear skipped");
+  }
 
   for (const target of targets) {
     const resolved = path.resolve(target);
@@ -263,14 +400,10 @@ function clearAppCache() {
       continue;
     }
     if (!fs.existsSync(resolved)) continue;
-    const usage = measurePath(resolved);
-    filesDeleted += usage.files;
-    bytesFreed += usage.bytes;
-    try {
-      fs.rmSync(resolved, { recursive: true, force: true });
-    } catch (error) {
-      errors.push(error instanceof Error ? error.message : `failed to remove ${target}`);
-    }
+    const usage = removePathSkippingLocked(resolved);
+    filesDeleted += usage.filesDeleted;
+    bytesFreed += usage.bytesFreed;
+    skipped.push(...usage.skipped);
   }
 
   return {
@@ -278,37 +411,22 @@ function clearAppCache() {
     userDataPath: userData,
     filesDeleted,
     bytesFreed,
-    errors
+    errors,
+    skipped
   };
 }
 
-function measurePath(target) {
-  let files = 0;
-  let bytes = 0;
-  const stack = [target];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (!current || !fs.existsSync(current)) continue;
-    const stat = fs.statSync(current);
-    if (stat.isDirectory()) {
-      for (const child of fs.readdirSync(current)) {
-        stack.push(path.join(current, child));
-      }
-    } else {
-      files += 1;
-      bytes += stat.size;
-    }
-  }
-  return { files, bytes };
-}
-
 function recordCommandLog(entry) {
+  const createdAt = entry.finishedAt ?? new Date().toISOString();
   commandHistory.push({
     id: `${Date.now()}-${commandHistory.length}`,
-    createdAt: new Date().toISOString(),
-    command: `BaiduPCS-Go ${entry.args.map(quoteArg).join(" ")}`,
-    stdout: trimLog(entry.stdout),
-    stderr: trimLog(entry.stderr),
+    createdAt,
+    startedAt: entry.startedAt ?? createdAt,
+    finishedAt: entry.finishedAt ?? createdAt,
+    durationMs: entry.durationMs ?? 0,
+    command: redactForLog(`BaiduPCS-Go ${entry.args.map(quoteArg).join(" ")}`),
+    stdout: trimLog(redactForLog(entry.stdout)),
+    stderr: trimLog(redactForLog(entry.stderr)),
     exitCode: entry.exitCode
   });
   while (commandHistory.length > 50) commandHistory.shift();
@@ -328,4 +446,138 @@ function firstLine(value) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean) || "";
+}
+
+function buildRuntimeSnapshot(input) {
+  const versionText = `${input.version?.stdout ?? ""}\n${input.version?.stderr ?? ""}`;
+  const whoText = `${input.who?.stdout ?? ""}\n${input.who?.stderr ?? ""}`;
+  const quotaText = `${input.quota?.stdout ?? ""}\n${input.quota?.stderr ?? ""}`;
+  const rootText = `${input.rootList?.stdout ?? ""}\n${input.rootList?.stderr ?? ""}`;
+  const account = { ...parseWhoOutput(whoText), ...parseQuotaOutput(quotaText) };
+  const cliInstalled = Boolean(input.cliPath) || input.version?.exitCode === 0;
+  const rootListOk = input.rootList?.exitCode === 0 && !containsLoginFailure(rootText);
+  const loginState = determineLoginState({ cliInstalled, account, quota: input.quota, text: `${whoText}\n${quotaText}` });
+  return {
+    bridgeOnline: Boolean(input.bridgeOnline),
+    cliInstalled,
+    cliPath: input.cliPath ?? "",
+    cliVersion: firstLine(versionText),
+    loginState,
+    account,
+    rootListOk,
+    message: runtimeMessage(loginState, cliInstalled, Boolean(input.bridgeOnline), `${whoText}\n${quotaText}\n${rootText}`)
+  };
+}
+
+function parseWhoOutput(value) {
+  const uid = value.match(/\buid\s*[:：]\s*([0-9]+)/i)?.[1]?.trim();
+  const username =
+    value.match(/用户名\s*[:：]\s*([^,\r\n]*)/)?.[1]?.trim() ||
+    value.match(/\busername\s*[:：]\s*([^,\r\n]*)/i)?.[1]?.trim() ||
+    value.match(/\bname\s*[:：]\s*([^,\r\n]*)/i)?.[1]?.trim();
+  return {
+    uid: uid || undefined,
+    username: username || undefined
+  };
+}
+
+function parseQuotaOutput(value) {
+  if (!value || containsLoginFailure(value)) return {};
+  const quotaTotal =
+    value.match(/(?:总容量|总空间|total|quota)\D{0,24}([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))/i)?.[1] ||
+    value.match(/容量\D{0,24}([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))/i)?.[1];
+  const quotaUsed =
+    value.match(/(?:已用|使用|used)\D{0,24}([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))/i)?.[1] ||
+    value.match(/([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))\s*\/\s*[\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB)/i)?.[1];
+  return {
+    quotaTotal: quotaTotal?.trim(),
+    quotaUsed: quotaUsed?.trim()
+  };
+}
+
+function determineLoginState(input) {
+  if (!input.cliInstalled) return "not_installed";
+  const uidValid = Boolean(input.account.uid && input.account.uid !== "0");
+  const identityValid = Boolean(input.account.username || (input.quota?.exitCode === 0 && (input.account.quotaTotal || input.account.quotaUsed)));
+  if (uidValid && identityValid) return "logged_in";
+  if (containsLoginFailure(input.text) || input.account.uid === "0") return "not_logged_in";
+  return "unknown";
+}
+
+function runtimeMessage(state, cliInstalled, bridgeOnline, evidence) {
+  if (!bridgeOnline) return "桌面 IPC 未连接";
+  if (!cliInstalled) return "未检测到 BaiduPCS-Go";
+  if (state === "logged_in") return "BaiduPCS-Go 已登录";
+  if (state === "not_logged_in") {
+    return /31045|登录状态过期|请尝试重新登录|user not exists|uid\s*[:：]\s*0\b|用户名\s*[:：]\s*(?:,|$)/i.test(evidence)
+      ? "BaiduPCS-Go 未登录或登录已失效"
+      : "BaiduPCS-Go 未登录";
+  }
+  return "BaiduPCS-Go 登录状态未确认";
+}
+
+function containsLoginFailure(value) {
+  return /31045|登录状态过期|请尝试重新登录|user not exists|uid\s*[:：]\s*0\b|用户名\s*[:：]\s*(?:,|$)|未登录/i.test(String(value ?? ""));
+}
+
+function removePathSkippingLocked(target) {
+  const result = { filesDeleted: 0, bytesFreed: 0, skipped: [] };
+  removeRecursive(target, result);
+  return result;
+}
+
+function removeRecursive(target, result) {
+  if (!fs.existsSync(target)) return;
+  let stat;
+  try {
+    stat = fs.statSync(target);
+  } catch (error) {
+    result.skipped.push(skipMessage(target, error));
+    return;
+  }
+  if (stat.isDirectory()) {
+    let children = [];
+    try {
+      children = fs.readdirSync(target);
+    } catch (error) {
+      result.skipped.push(skipMessage(target, error));
+      return;
+    }
+    for (const child of children) {
+      removeRecursive(path.join(target, child), result);
+    }
+    try {
+      fs.rmSync(target, { force: true, recursive: false });
+    } catch {
+      // Non-empty or locked cache directories can remain after file cleanup.
+    }
+    return;
+  }
+  try {
+    fs.rmSync(target, { force: true });
+    result.filesDeleted += 1;
+    result.bytesFreed += stat.size;
+  } catch (error) {
+    result.skipped.push(skipMessage(target, error));
+  }
+}
+
+function skipMessage(target, error) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : "SKIPPED";
+  return `${code}: ${path.basename(target)}`;
+}
+
+function redactForLog(value) {
+  return String(value ?? "")
+    .replace(/https?:\/\/pan\.baidu\.com\/s\/[^\s)'"<>，。；;]+/gi, "<redacted-share-url>")
+    .replace(/(?:提取码|提取密码|pwd|code)\s*[:：=]?\s*[A-Za-z0-9]{4,}/gi, "extractCode: <redacted>")
+    .replace(/(?:BDUSS|STOKEN|PTOKEN|BAIDUID|authorization)\s*[:：=]\s*[^\s;]+/gi, "<redacted-auth-field>");
+}
+
+function diffMs(startedAt, finishedAt) {
+  return Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime());
+}
+
+function escapeCmd(value) {
+  return String(value).replace(/"/g, '""');
 }

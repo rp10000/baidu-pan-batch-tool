@@ -22,6 +22,15 @@ if (!cliPath) {
   process.exit(0);
 }
 
+const login = inspectLogin();
+if (!login.loggedIn) {
+  console.log("share: fail");
+  console.log("link_format: invalid");
+  console.log("extract_code: missing");
+  console.log("message: login_required");
+  process.exit(0);
+}
+
 mkdirSync(dirname(localHello), { recursive: true });
 writeFileSync(localHello, "panjie share real smoke\n", "utf8");
 
@@ -64,6 +73,21 @@ function run(args) {
     status: result.status ?? 1,
     stdout: result.stdout || "",
     stderr: result.stderr || ""
+  };
+}
+
+function inspectLogin() {
+  const who = run(["who"]);
+  const quota = run(["quota"]);
+  const rootList = run(["ls", "/"]);
+  const text = `${who.stdout}\n${who.stderr}\n${quota.stdout}\n${quota.stderr}\n${rootList.stdout}\n${rootList.stderr}`;
+  const uid = text.match(/\buid\s*[:：]\s*([0-9]+)/i)?.[1];
+  const username =
+    text.match(/用户名\s*[:：]\s*([^,\r\n]*)/)?.[1]?.trim() ||
+    text.match(/\busername\s*[:：]\s*([^,\r\n]*)/i)?.[1]?.trim();
+  const quotaOk = quota.status === 0 && !/31045|user not exists|登录状态过期|请重新登录/i.test(`${quota.stdout}\n${quota.stderr}`);
+  return {
+    loggedIn: Boolean(uid && uid !== "0" && (username || quotaOk))
   };
 }
 

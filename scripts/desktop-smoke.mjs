@@ -112,7 +112,7 @@ async function verifyUi(page) {
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await verifyBatchLayout(page, { width: 1440, height: 900 });
   await verifyDraftPersistence(page, nav);
-  await verifyFailureStateAndToast(page);
+  await verifyLoginBlockedState(page);
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-batch.png"), fullPage: true });
   await page.screenshot({ path: path.join(screenshotsDir, "share-path-fixed-or-error.png"), fullPage: true });
 
@@ -170,62 +170,17 @@ async function verifyDraftPersistence(page, nav) {
   await page.getByRole("button", { name: "清空" }).click();
 }
 
-async function verifyFailureStateAndToast(page) {
-  await installShareCode2FakeCli(page);
+async function verifyLoginBlockedState(page) {
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1desktopFailure 1234");
-  await page.getByRole("button", { name: /开始快速处理/ }).click();
-  const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
-  await dialog.waitFor({ timeout: 30_000 });
-  const text = await dialog.innerText();
-  if (/任务完成/.test(text)) {
-    throw new Error("failure dialog still displays task completed wording");
+  await page.getByText(/BaiduPCS-Go 未登录|请先登录 CLI/).first().waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: "请先登录 CLI" }).waitFor({ timeout: 10_000 });
+  if (!(await page.getByRole("button", { name: "请先登录 CLI" }).isDisabled())) {
+    throw new Error("real processing button must be disabled while CLI is not logged in");
   }
-  const copyButtons = dialog.getByRole("button", { name: "复制分享信息" });
-  if (!(await copyButtons.first().isDisabled()) || !(await copyButtons.last().isDisabled())) {
-    throw new Error("copy share buttons are enabled while share failed");
-  }
-  await dialog.getByRole("button", { name: "查看失败原因" }).click();
-  const toast = page.locator(".toast.show");
-  await toast.waitFor({ timeout: 5_000 });
-  const toastBox = await toast.boundingBox();
-  const primaryBox = await page.getByRole("button", { name: /开始快速处理|处理中/ }).first().boundingBox();
-  if (toastBox && primaryBox && rectanglesOverlap(toastBox, primaryBox)) {
-    throw new Error("toast overlaps the primary batch action");
+  if (await page.getByRole("dialog", { name: "任务结果弹窗" }).count()) {
+    throw new Error("batch task dialog should not open while CLI is not logged in");
   }
   await page.screenshot({ path: path.join(screenshotsDir, "fix-share-failed-partial.png"), fullPage: true });
-  await dialog.getByRole("button", { name: "完成" }).click();
-}
-
-async function installShareCode2FakeCli(page) {
-  await page.evaluate(() => {
-    const api = window.panjieDesktop;
-    if (!api || typeof api.localCliRun !== "function") return false;
-
-    api.localCliRun = async (command) => {
-      const args = command.args || [];
-      const text = args.join(" ");
-      if (args[0] === "who") {
-        return { exitCode: 0, stdout: "uid: 10001, username: redacted", stderr: "", timedOut: false };
-      }
-      if (args.includes("--version")) {
-        return { exitCode: 0, stdout: "BaiduPCS-Go fake-desktop", stderr: "", timedOut: false };
-      }
-      if (args[0] === "ls") {
-        return { exitCode: 0, stdout: "2026-01-01 00:00:00 1024 course.mp4", stderr: "", timedOut: false };
-      }
-      if (args[0] === "share" && args[1] === "set") {
-        return { exitCode: 0, stdout: "\u8fdc\u7aef\u670d\u52a1\u5668\u8fd4\u56de\u9519\u8bef\uff0c\u4ee3\u7801: 2", stderr: "", timedOut: false };
-      }
-      if (args[0] === "share" && args[1] === "list") {
-        return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
-      }
-      if (/mkdir|cd|transfer|mv|upload/.test(text)) {
-        return { exitCode: 0, stdout: "ok", stderr: "", timedOut: false };
-      }
-      return { exitCode: 0, stdout: "ok", stderr: "", timedOut: false };
-    };
-    return true;
-  }).catch(() => false);
 }
 
 async function verifySettingsSimpleMode(page) {
@@ -241,16 +196,13 @@ async function verifySettingsSimpleMode(page) {
   await page.getByRole("button", { name: "检查依赖" }).click();
   await page.getByText("Node Runtime").waitFor({ timeout: 10_000 });
   await page.getByText("BaiduPCS-Go", { exact: true }).first().waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: "安装扫描运行时" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "清理缓存" }).click();
   await page.getByText(/删除文件 \d+ 个，释放/).waitFor({ timeout: 10_000 });
-  const disconnectedButtons = page.getByRole("button", { name: "功能未接线" });
-  if ((await disconnectedButtons.count()) < 2) {
-    throw new Error("settings page should show unimplemented buttons as disabled 功能未接线");
-  }
-  for (let index = 0; index < await disconnectedButtons.count(); index += 1) {
-    if (!(await disconnectedButtons.nth(index).isDisabled())) {
-      throw new Error("功能未接线 button is not disabled");
-    }
+  const updateButton = page.getByRole("button", { name: "检查更新未接线" });
+  await updateButton.waitFor({ timeout: 5_000 });
+  if (!(await updateButton.isDisabled())) {
+    throw new Error("unwired update check button must be disabled");
   }
   if (await page.getByText("能力矩阵").isVisible()) {
     throw new Error("advanced debug is expanded by default");
@@ -264,10 +216,6 @@ async function verifySettingsSimpleMode(page) {
   await page.getByText("exitCode").waitFor({ timeout: 5_000 });
   await page.getByText("能力矩阵").waitFor({ timeout: 5_000 });
   await page.screenshot({ path: path.join(screenshotsDir, "settings-advanced-expanded.png"), fullPage: true });
-}
-
-function rectanglesOverlap(a, b) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
 async function verifyCustomChrome(page) {
@@ -294,16 +242,16 @@ async function verifyBatchLayout(page, size) {
   await page.getByText("检查二维码").waitFor({ timeout: 5_000 });
   await page.getByText("OCR 检查文字").waitFor({ timeout: 5_000 });
   await page.getByText("任务流水线").waitFor({ timeout: 5_000 });
-  await page.getByText("分享链接转存还未真实验证").waitFor({ timeout: 5_000 });
+  await page.getByText(/分享链接转存还未真实验证|BaiduPCS-Go 未登录/).waitFor({ timeout: 5_000 });
 
-  const startButton = page.getByRole("button", { name: /开始快速处理|开始处理并检查|开始深度处理/ }).first();
+  const startButton = page.getByRole("button", { name: /请先登录 CLI|开始快速处理|开始处理并检查|开始深度处理/ }).first();
   await startButton.waitFor({ state: "visible", timeout: 5_000 });
 
   const layout = await page.evaluate(() => {
     const body = document.body;
     const doc = document.documentElement;
     const button = [...document.querySelectorAll("button")].find((item) =>
-      /开始快速处理|开始处理并检查|开始深度处理/.test(item.textContent ?? "")
+      /请先登录 CLI|开始快速处理|开始处理并检查|开始深度处理/.test(item.textContent ?? "")
     );
     const scanOption = [...document.querySelectorAll("button")].find((item) =>
       /检查二维码/.test(item.textContent ?? "")

@@ -19,7 +19,9 @@ export function TopBar({ onNewTask }: { onNewTask: () => void }) {
       </span>
       <span className="sync-pill">
         <Bell size={17} />
-        {storage.message}
+        {storage.activeMode === "windows_local_cli" && storage.cliRuntime
+          ? `${storage.cliRuntime.cliInstalled ? "CLI 已检测" : "CLI 未检测到"} · ${storage.cliRuntime.loginState === "logged_in" ? "已登录" : "未登录"}`
+          : storage.message}
       </span>
       <button className="primary-btn" type="button" onClick={onNewTask}>
         <Plus size={18} />

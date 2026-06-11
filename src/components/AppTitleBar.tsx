@@ -15,7 +15,7 @@ export function AppTitleBar() {
       </div>
       <div className="titlebar-status">
         <span>{meta.label}</span>
-        <b>{storage.connectionOk ? "CLI 已连接" : "CLI 待检测 / 失败降级"}</b>
+        <b>{titlebarStatus(storage)}</b>
       </div>
       <div className="window-controls" aria-label="窗口控制">
         <button type="button" aria-label="最小化窗口" onClick={() => void windowApi?.minimize()}>
@@ -30,6 +30,14 @@ export function AppTitleBar() {
       </div>
     </header>
   );
+}
+
+function titlebarStatus(storage: ReturnType<typeof useStorageMode>): string {
+  if (storage.activeMode === "mock") return "Mock 演示模式";
+  if (storage.activeMode !== "windows_local_cli") return storage.connectionOk ? "已连接" : "待验证";
+  if (storage.cliRuntime?.loginState === "logged_in") return "CLI 已登录";
+  if (storage.cliRuntime?.cliInstalled) return "CLI 未登录";
+  return "CLI 未检测到";
 }
 
 function getWindowApi():

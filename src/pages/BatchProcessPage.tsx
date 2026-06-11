@@ -32,6 +32,7 @@ export function BatchProcessPage({
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [blockedReason, setBlockedReason] = useState("");
   const draft = useBatchDraftStore();
   const input = draft.rawInput;
   const mode = draft.selectedMode;
@@ -39,6 +40,17 @@ export function BatchProcessPage({
   const { activeTask, createTask, updateTask } = useTaskStore();
   const storage = useStorageMode();
   const modeMeta = getAdapterModeMeta(storage.activeMode);
+  const localCliBlocked = storage.activeMode === "windows_local_cli" && !storage.connectionOk;
+  const localCliStatusText =
+    storage.activeMode === "windows_local_cli"
+      ? storage.cliRuntime?.loginState === "logged_in"
+        ? "已登录"
+        : storage.cliRuntime?.cliInstalled
+          ? "未登录"
+          : "未检测到"
+      : storage.connectionOk
+        ? "已连接"
+        : "未验证";
   const primaryActionLabel =
     options.scanOptions.mode === "off"
       ? "开始快速处理"
@@ -64,12 +76,17 @@ export function BatchProcessPage({
       onToast("请输入至少一条有效链接");
       return;
     }
+    if (localCliBlocked) {
+      setBlockedReason(storage.cliRuntime?.message ?? "Windows 本地 CLI 未登录，请先到设置中心启动登录并重新检测。");
+      return;
+    }
 
     setRunning(true);
+    setBlockedReason("");
     setModalOpen(false);
     let created = false;
     const canUseRealAdapter =
-      storage.activeMode === "windows_local_cli" ||
+      (storage.activeMode === "windows_local_cli" && storage.connectionOk) ||
       (storage.activeMode === "bdpan_wsl" && storage.connectionOk);
     const service = canUseRealAdapter
       ? new RealProcessingService(storage.getActiveAdapter())
@@ -203,12 +220,13 @@ export function BatchProcessPage({
             <Download size={17} />
             导入 TXT / CSV
           </button>
-          <button className="primary-btn" type="button" onClick={startProcess}>
+          <button className="primary-btn" type="button" onClick={startProcess} disabled={running || localCliBlocked} title={localCliBlocked ? "请先到设置中心登录 BaiduPCS-Go" : undefined}>
             <Play size={17} />
-            {running ? "处理中" : primaryActionLabel}
+            {localCliBlocked ? "请先登录 CLI" : running ? "处理中" : primaryActionLabel}
           </button>
         </div>
       </div>
+      {blockedReason && <p className="notice error batch-blocked-notice">{blockedReason}</p>}
 
       <div className="batch-grid">
         <div className="batch-left">
@@ -262,7 +280,7 @@ export function BatchProcessPage({
               </div>
               <div>
                 <span>CLI 状态</span>
-                <b>{storage.connectionOk ? "已登录" : "需要重新检测 / 登录"}</b>
+                <b>{localCliStatusText}</b>
               </div>
               <div>
                 <span>分享能力</span>
@@ -277,7 +295,11 @@ export function BatchProcessPage({
               <p className="notice error">文件已处理完成，但 BaiduPCS-Go 未能创建分享链接。原因：{classifyShareFailure(activeTask.shareError).message}</p>
             )}
             {storage.activeMode === "windows_local_cli" && (
-              <p className="notice">分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。</p>
+              <p className={`notice ${storage.connectionOk ? "" : "error"}`}>
+                {storage.connectionOk
+                  ? "分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。"
+                  : "BaiduPCS-Go 未登录，真实转存和创建分享已禁用。请先到设置中心启动登录并重新检测。"}
+              </p>
             )}
           </Card>
           <RenameRuleForm

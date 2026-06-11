@@ -79,6 +79,6 @@ test("settings and batch pages show local cli mode", async ({ page }) => {
 
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await expect(page.getByText("当前模式")).toBeVisible();
-  await expect(page.getByText("分享链接转存还未真实验证")).toBeVisible();
+  await expect(page.getByText(/分享链接转存还未真实验证|BaiduPCS-Go 未登录/)).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-batch-ready-or-blocked.png", fullPage: true });
 });

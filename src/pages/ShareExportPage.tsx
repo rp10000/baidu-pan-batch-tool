@@ -122,7 +122,7 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
       <div className="form-grid one">
         <label>
           <span>新分享链接</span>
-          <input className="input" value={task?.shareResult?.shareUrl ?? (task?.shareError ? "未生成分享链接" : "等待生成")} readOnly />
+          <input className="input" value={task?.shareResult?.shareUrl ?? "未生成分享链接"} readOnly />
         </label>
         <label>
           <span>提取码</span>
@@ -142,7 +142,7 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
         </label>
         <label>
           <span>结果来源</span>
-          <input className="input" value={task?.shareResult?.source === "local_cli" ? `真实 CLI / ${verification}` : task?.shareResult?.source === "mock" ? "Mock 演示链接，不可真实访问" : "等待生成"} readOnly />
+          <input className="input" value={task?.shareResult?.source === "local_cli" ? `真实 CLI / ${verification}` : task?.shareResult?.source === "mock" ? "Mock 演示链接，不可真实访问" : "未生成"} readOnly />
         </label>
       </div>
       {task?.shareError && (

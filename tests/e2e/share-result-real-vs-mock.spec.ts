@@ -18,24 +18,13 @@ test("windows local cli failure shows reason instead of fake share link", async 
   const nav = page.locator('nav[aria-label="主导航"]');
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await expect(page.locator("body")).toContainText("当前模式");
-  await expect(page.locator("body")).toContainText("分享链接转存还未真实验证");
+  await expect(page.locator("body")).toContainText("BaiduPCS-Go 未登录");
   await page.screenshot({ path: "artifacts/screenshots/fixed-batch-transfer-status.png", fullPage: true });
 
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1needsrealcli 1234");
-  await page.getByRole("button", { name: /开始快速处理/ }).click();
-
-  const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("local cli bridge unavailable");
-  await expect(dialog).not.toContainText("mock-");
-  await expect(dialog).not.toContainText("generated_redacted");
-  await expect(dialog).not.toContainText("<redacted");
-  await expect(dialog).not.toContainText("任务完成");
-  const copyButtons = dialog.getByRole("button", { name: "复制分享信息" });
-  await expect(copyButtons.first()).toBeDisabled();
-  await expect(copyButtons.last()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "请先登录 CLI" })).toBeDisabled();
+  await expect(page.getByRole("dialog", { name: "任务结果弹窗" })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/fixed-share-result-real-or-failed.png", fullPage: true });
-  await dialog.getByRole("button", { name: "完成" }).click();
 
   await nav.getByRole("button", { name: /分享导出/ }).click();
   await expect(page.getByRole("heading", { name: "分享导出" })).toBeVisible();
@@ -53,14 +42,21 @@ test("share code 2 is partial completed and copy is disabled", async ({ page }) 
     const response =
       command === "share"
         ? { exitCode: 0, stdout: "创建分享链接失败: 创建分享链接: 遇到错误, 远端服务器返回错误, 代码: 2, 消息: 请稍后再试", stderr: "" }
-        : command === "ls"
-          ? { exitCode: 0, stdout: "course.mp4", stderr: "" }
-          : { exitCode: 0, stdout: "ok", stderr: "" };
+      : command === "ls"
+        ? { exitCode: 0, stdout: "course.mp4", stderr: "" }
+      : command === "who"
+        ? { exitCode: 0, stdout: "uid: 10001, username: redacted", stderr: "" }
+      : command === "quota"
+        ? { exitCode: 0, stdout: "总容量: 2 TB\n已用: 1 GB", stderr: "" }
+      : { exitCode: 0, stdout: "ok", stderr: "" };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(response) });
   });
 
   await page.goto("/");
   const nav = page.locator('nav[aria-label="主导航"]');
+  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await page.getByRole("button", { name: "重新检测" }).click();
+  await expect(page.getByText("已登录").first()).toBeVisible();
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1partial 1234");
   await page.getByRole("button", { name: /开始快速处理/ }).click();

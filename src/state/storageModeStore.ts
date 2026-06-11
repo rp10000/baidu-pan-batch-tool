@@ -5,6 +5,7 @@ import type { AdapterMode } from "../adapters/adapterMode";
 import type { StorageCapabilities } from "../adapters/StorageAdapter";
 import { createStorageAdapter } from "../adapters/adapterProvider";
 import { inspectStorageRuntime } from "../services/StorageCapabilityService";
+import type { LocalCliRuntimeSnapshot } from "../services/LocalCliRuntimeService";
 
 interface StorageModeValue {
   requestedMode: AdapterMode;
@@ -13,6 +14,7 @@ interface StorageModeValue {
   connectionOk: boolean;
   displayName?: string;
   capabilities: StorageCapabilities;
+  cliRuntime?: LocalCliRuntimeSnapshot;
   checking: boolean;
   setRequestedMode: (mode: AdapterMode) => void;
   refreshCapabilities: () => Promise<void>;
@@ -30,6 +32,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
   const [connectionOk, setConnectionOk] = useState(false);
   const [displayName, setDisplayName] = useState<string | undefined>(getAdapterModeMeta(defaultMode).label);
   const [capabilities, setCapabilities] = useState<StorageCapabilities>(capabilitiesForMode(defaultMode));
+  const [cliRuntime, setCliRuntime] = useState<LocalCliRuntimeSnapshot | undefined>();
   const [checking, setChecking] = useState(false);
 
   const setRequestedMode = useCallback((mode: AdapterMode) => {
@@ -38,6 +41,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
     setConnectionOk(mode === "mock");
     setDisplayName(getAdapterModeMeta(mode).label);
     setCapabilities(capabilitiesForMode(mode));
+    if (mode !== "windows_local_cli") setCliRuntime(undefined);
     setMessage(modeMessage(mode));
   }, []);
 
@@ -53,6 +57,18 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
 
     setChecking(true);
     try {
+      if (requestedMode === "windows_local_cli") {
+        const desktopRuntime = await inspectDesktopLocalCli();
+        if (desktopRuntime) {
+          setActiveMode("windows_local_cli");
+          setCliRuntime(desktopRuntime);
+          setMessage(desktopRuntime.message);
+          setConnectionOk(desktopRuntime.loginState === "logged_in");
+          setDisplayName(desktopRuntime.account.username ?? "未登录");
+          setCapabilities(capabilitiesForMode("windows_local_cli"));
+          return;
+        }
+      }
       const result = await inspectStorageRuntime(requestedMode);
       setActiveMode(result.activeMode);
       setMessage(result.message);
@@ -74,6 +90,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
       connectionOk,
       displayName,
       capabilities,
+      cliRuntime,
       checking,
       setRequestedMode,
       refreshCapabilities,
@@ -83,6 +100,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
       activeMode,
       capabilities,
       checking,
+      cliRuntime,
       connectionOk,
       displayName,
       getActiveAdapter,
@@ -114,4 +132,17 @@ function modeMessage(mode: AdapterMode): string {
     mock: "Mock 演示模式，不会真实转存"
   };
   return messages[mode];
+}
+
+async function inspectDesktopLocalCli(): Promise<LocalCliRuntimeSnapshot | undefined> {
+  if (typeof window === "undefined") return undefined;
+  const api = (
+    window as typeof window & {
+      panjieDesktop?: {
+        inspectLocalCli?: () => Promise<LocalCliRuntimeSnapshot>;
+      };
+    }
+  ).panjieDesktop;
+  if (!api?.inspectLocalCli) return undefined;
+  return api.inspectLocalCli();
 }

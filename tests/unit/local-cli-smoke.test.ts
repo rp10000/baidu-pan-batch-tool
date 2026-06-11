@@ -22,6 +22,12 @@ class FakeLocalCliRunner implements LocalCliCommandRunner {
     if (command.args[0] === "who" && this.scenario === "not_logged_in") {
       return { exitCode: 1, stdout: "", stderr: "未登录" };
     }
+    if (command.args[0] === "who") {
+      return { exitCode: 0, stdout: "uid: 10001, username: redacted", stderr: "" };
+    }
+    if (command.args[0] === "quota") {
+      return { exitCode: 0, stdout: "总容量: 2 TB\n已用: 1 GB", stderr: "" };
+    }
     if (command.args[0] === "transfer" && this.scenario === "unsupported") {
       return { exitCode: 3, stdout: "", stderr: "unsupported transfer" };
     }

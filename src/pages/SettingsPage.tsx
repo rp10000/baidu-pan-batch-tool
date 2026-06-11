@@ -10,6 +10,7 @@ import type { CapabilityKey, CapabilityStatus } from "../adapters/adapterMode";
 import { useBatchDraftStore } from "../state/batchDraftStore";
 import { useStorageMode } from "../state/storageModeStore";
 import { Card, StatusDot, Switch, Tag } from "../components/ui";
+import type { LocalCliRuntimeSnapshot } from "../services/LocalCliRuntimeService";
 
 const matrixRows: CapabilityKey[] = [
   "checkLogin",
@@ -21,27 +22,6 @@ const matrixRows: CapabilityKey[] = [
   "uploadFile",
   "createShareLink"
 ];
-
-interface DesktopCommandResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  timedOut?: boolean;
-}
-
-interface CliDiagnostic {
-  status: "logged_in" | "not_logged_in" | "failed";
-  username: string;
-  quotaTotal: string;
-  quotaUsed: string;
-  rootListStatus: string;
-  message: string;
-  raw: {
-    who: DesktopCommandResult;
-    quota: DesktopCommandResult;
-    rootList: DesktopCommandResult;
-  };
-}
 
 interface DependencyItem {
   name: string;
@@ -56,10 +36,22 @@ interface DependencyItem {
 interface CommandLogEntry {
   id: string;
   createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
   command: string;
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+interface ScanRuntimeInstallResult {
+  ok: boolean;
+  status: "installed" | "python_required" | "failed";
+  runtimeDir?: string;
+  startedAt: string;
+  finishedAt: string;
+  logs: string[];
 }
 
 export function SettingsPage() {
@@ -69,20 +61,14 @@ export function SettingsPage() {
   const [loginOpening, setLoginOpening] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [dependencyChecking, setDependencyChecking] = useState(false);
+  const [scanRuntimeInstalling, setScanRuntimeInstalling] = useState(false);
   const [cacheClearing, setCacheClearing] = useState(false);
-  const [cliDiagnostic, setCliDiagnostic] = useState<CliDiagnostic | undefined>();
   const [dependencies, setDependencies] = useState<DependencyItem[]>([]);
   const [cacheResult, setCacheResult] = useState("");
+  const [scanRuntimeResult, setScanRuntimeResult] = useState<ScanRuntimeInstallResult | undefined>();
   const [developerLog, setDeveloperLog] = useState<{ cliPath: string; entries: CommandLogEntry[] } | undefined>();
-  const cliStatus = cliDiagnostic
-    ? cliDiagnostic.status === "logged_in"
-      ? "已连接"
-      : cliDiagnostic.message
-    : storage.connectionOk
-      ? "已连接"
-      : storage.checking || detecting
-        ? "检测中"
-        : "未登录 / 未检测到";
+  const cliRuntime = storage.cliRuntime;
+  const cliStatus = cliStatusLabel(cliRuntime, storage.checking || detecting, storage.connectionOk);
 
   async function refreshDeveloperLog() {
     const desktop = getDesktopApi();
@@ -93,8 +79,6 @@ export function SettingsPage() {
   async function redetectConnection() {
     setDetecting(true);
     storage.setRequestedMode("windows_local_cli");
-    const diagnostic = await runCliDiagnostic();
-    setCliDiagnostic(diagnostic);
     await storage.refreshCapabilities();
     await refreshDeveloperLog();
     setDetecting(false);
@@ -110,7 +94,7 @@ export function SettingsPage() {
       return;
     }
     const result = await desktop.startLocalCliLogin();
-    setLoginMessage(result.ok ? `登录窗口已打开${result.pid ? `（PID ${result.pid}）` : ""}。完成扫码/确认后，回到这里点“重新检测”。` : result.error ?? "无法打开登录窗口");
+    setLoginMessage(result.ok ? "已打开可见登录终端。请在弹出的 BaiduPCS-Go 窗口内完成登录，然后点击“重新检测”。" : result.error ?? "无法打开登录终端");
     await refreshDeveloperLog();
     setLoginOpening(false);
   }
@@ -129,6 +113,26 @@ export function SettingsPage() {
     setDependencyChecking(false);
   }
 
+  async function installScanRuntime() {
+    setScanRuntimeInstalling(true);
+    const desktop = getDesktopApi();
+    if (!desktop?.installScanRuntime) {
+      setScanRuntimeResult({
+        ok: false,
+        status: "failed",
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        logs: ["当前不是桌面客户端，无法安装扫描运行时。"]
+      });
+      setScanRuntimeInstalling(false);
+      return;
+    }
+    const result = await desktop.installScanRuntime();
+    setScanRuntimeResult(result);
+    await checkDependencies();
+    setScanRuntimeInstalling(false);
+  }
+
   async function clearCache() {
     setCacheClearing(true);
     const desktop = getDesktopApi();
@@ -138,7 +142,7 @@ export function SettingsPage() {
       return;
     }
     const result = await desktop.clearCache();
-    setCacheResult(`删除文件 ${result.filesDeleted} 个，释放 ${formatBytes(result.bytesFreed)}${result.errors.length ? `；错误：${result.errors.join("；")}` : ""}`);
+    setCacheResult(`删除文件 ${result.filesDeleted} 个，释放 ${formatBytes(result.bytesFreed)}${result.skipped?.length ? `；跳过锁定项 ${result.skipped.length} 个` : ""}${result.errors.length ? `；错误：${result.errors.join("；")}` : ""}`);
     setCacheClearing(false);
   }
 
@@ -157,12 +161,13 @@ export function SettingsPage() {
             <KeyRound size={28} />
             <div>
               <b>Windows 本地 CLI</b>
-              <span>当前 CLI：BaiduPCS-Go</span>
+              <span>当前 CLI：{cliRuntime?.cliVersion || "BaiduPCS-Go"}</span>
             </div>
           </div>
           <div className="api-row"><span>连接状态</span><b>{cliStatus}</b></div>
-          <div className="api-row"><span>用户名</span><b>{cliDiagnostic?.username ?? "未检测"}</b></div>
-          <div className="api-row"><span>容量 / 已用</span><b>{cliDiagnostic ? `${cliDiagnostic.quotaTotal} / ${cliDiagnostic.quotaUsed}` : "未检测"}</b></div>
+          <div className="api-row"><span>用户名</span><b>{cliRuntime?.account.username ?? (cliRuntime?.loginState === "not_logged_in" ? "未登录" : "未检测")}</b></div>
+          <div className="api-row"><span>容量 / 已用</span><b>{cliRuntime?.account.quotaTotal || cliRuntime?.account.quotaUsed ? `${cliRuntime.account.quotaTotal ?? "未解析"} / ${cliRuntime.account.quotaUsed ?? "未解析"}` : "未检测"}</b></div>
+          {cliRuntime?.message && <p className={`notice ${cliRuntime.loginState === "logged_in" ? "" : "error"}`}>{cliRuntime.message}</p>}
           <div className="dual-actions">
             <button className="secondary-btn" type="button" onClick={() => void redetectConnection()}>
               {storage.checking || detecting ? "检测中" : "重新检测"}
@@ -182,17 +187,24 @@ export function SettingsPage() {
         </Card>
 
         <Card title="扫描配置" action={<ScanLine size={18} />}>
+          <div className="api-row"><span>Python</span><b>{dependencyLabel(dependencies, "Python")}</b></div>
           <div className="api-row"><span>OCR / Tesseract</span><b>{dependencyLabel(dependencies, "Tesseract")}</b></div>
           <div className="api-row"><span>OpenCV</span><b>{dependencyLabel(dependencies, "OpenCV")}</b></div>
           <div className="api-row"><span>FFmpeg</span><b>{dependencyLabel(dependencies, "FFmpeg")}</b></div>
           <div className="dual-actions">
-            <button className="secondary-btn" type="button" disabled title="自动下载安装策略未接线">
-              功能未接线
+            <button className="secondary-btn" type="button" onClick={() => void installScanRuntime()}>
+              {scanRuntimeInstalling ? "安装中" : "安装扫描运行时"}
             </button>
             <button className="secondary-btn" type="button" onClick={() => void checkDependencies()}>
               {dependencyChecking ? "检测中" : "检查依赖"}
             </button>
           </div>
+          {scanRuntimeResult && (
+            <div className={`notice ${scanRuntimeResult.ok ? "" : "error"}`}>
+              <b>{scanRuntimeStatus(scanRuntimeResult)}</b>
+              <pre className="log-block compact-log">{scanRuntimeResult.logs.join("\n")}</pre>
+            </div>
+          )}
           {dependencies.length > 0 && (
             <div className="dependency-list">
               {dependencies.map((item) => (
@@ -206,7 +218,7 @@ export function SettingsPage() {
         </Card>
 
         <Card title="数据与缓存" action={<Database size={18} />}>
-          <div className="api-row"><span>缓存大小</span><b>2.34GB</b></div>
+          <div className="api-row"><span>缓存状态</span><b>{cacheResult ? "已清理" : "未检测"}</b></div>
           <div className="api-row">
             <span>草稿保存</span>
             <button className="inline-toggle" type="button" onClick={() => draft.setPersistDraft(!draft.persistDraft)}>
@@ -224,7 +236,7 @@ export function SettingsPage() {
           <div className="api-row"><span>版本</span><b>0.1.0</b></div>
           <div className="api-row"><span>exe 路径</span><b>release/盘姬批量助手 0.1.0.exe</b></div>
           <div className="api-row"><span>数据目录</span><b>Windows 应用数据目录</b></div>
-          <button className="secondary-btn full" type="button" disabled title="更新服务未接线">功能未接线</button>
+          <button className="secondary-btn full" type="button" disabled title="检查更新功能未接线">检查更新未接线</button>
         </Card>
       </div>
 
@@ -236,7 +248,7 @@ export function SettingsPage() {
         <div className="settings-grid advanced-grid">
           <Card title="开发者模式" action={<Tag tone="blue">真实 IPC</Tag>}>
             <div className="api-row"><span>CLI 路径</span><b>{developerLog?.cliPath || "未刷新"}</b></div>
-            <div className="api-row"><span>CLI 版本</span><b>{dependencies.find((item) => item.name === "BaiduPCS-Go")?.version ?? "未检测"}</b></div>
+            <div className="api-row"><span>CLI 版本</span><b>{cliRuntime?.cliVersion || dependencies.find((item) => item.name === "BaiduPCS-Go")?.version || "未检测"}</b></div>
             <div className="api-row"><span>当前模式</span><b>{storage.activeMode}</b></div>
             <div className="api-row"><span>smoke 日志</span><b>docs/windows-cli-smoke-report.md</b></div>
             <div className="api-row"><span>bdpan WSL</span><b>保留为高级诊断</b></div>
@@ -310,9 +322,20 @@ function DeveloperCommandLog({ entries }: { entries: CommandLogEntry[] }) {
     return <p className="notice">暂无 CLI 执行日志。点击“重新检测”、创建分享或刷新执行日志后显示真实命令输出。</p>;
   }
 
+  function copyDebugInfo() {
+    const payload = {
+      latest,
+      entries: entries.slice(-10)
+    };
+    void navigator.clipboard?.writeText(JSON.stringify(payload, null, 2)).catch(() => undefined);
+  }
+
   return (
     <div className="developer-log">
       <div className="api-row"><span>执行命令</span><b>{latest.command}</b></div>
+      <div className="api-row"><span>startedAt</span><b>{latest.startedAt ?? latest.createdAt}</b></div>
+      <div className="api-row"><span>finishedAt</span><b>{latest.finishedAt ?? latest.createdAt}</b></div>
+      <div className="api-row"><span>durationMs</span><b>{latest.durationMs ?? 0}</b></div>
       <div className="api-row"><span>exitCode</span><b>{latest.exitCode}</b></div>
       <label>
         <span>stdout</span>
@@ -322,6 +345,9 @@ function DeveloperCommandLog({ entries }: { entries: CommandLogEntry[] }) {
         <span>stderr</span>
         <pre className="log-block">{latest.stderr || "(empty)"}</pre>
       </label>
+      <button className="secondary-btn full" type="button" onClick={copyDebugInfo}>
+        复制调试信息
+      </button>
     </div>
   );
 }
@@ -342,57 +368,19 @@ function statusTone(status: CapabilityStatus): "blue" | "pink" | "orange" | "gre
   return "red";
 }
 
-async function runCliDiagnostic(): Promise<CliDiagnostic> {
-  const desktop = getDesktopApi();
-  if (!desktop?.localCliRun) {
-    const failed = { exitCode: 127, stdout: "", stderr: "desktop IPC unavailable" };
-    return {
-      status: "failed",
-      username: "未检测",
-      quotaTotal: "未检测",
-      quotaUsed: "未检测",
-      rootListStatus: "未检测",
-      message: "当前不是桌面客户端，无法执行真实检测。",
-      raw: { who: failed, quota: failed, rootList: failed }
-    };
-  }
-
-  const [who, quota, rootList] = await Promise.all([
-    desktop.localCliRun({ args: ["who"], timeoutMs: 10000 }),
-    desktop.localCliRun({ args: ["quota"], timeoutMs: 10000 }),
-    desktop.localCliRun({ args: ["ls", "/"], timeoutMs: 20000 })
-  ]);
-  const whoText = `${who.stdout}\n${who.stderr}`;
-  const loggedIn = who.exitCode === 0 && !/uid\s*[:：]\s*0\b|请重新登录|登录状态过期|user not exists|代码\s*[:：]\s*-?\d+/i.test(whoText);
-  const quotaInfo = parseQuota(`${quota.stdout}\n${quota.stderr}`);
-  return {
-    status: loggedIn ? "logged_in" : "not_logged_in",
-    username: loggedIn ? parseUsername(whoText) : "未登录",
-    quotaTotal: quotaInfo.total,
-    quotaUsed: quotaInfo.used,
-    rootListStatus: rootList.exitCode === 0 ? "ls / 已执行" : `ls / 失败：${rootList.stderr || rootList.stdout || rootList.exitCode}`,
-    message: loggedIn ? "已连接" : who.stderr || who.stdout || "未登录 / 登录已失效",
-    raw: { who, quota, rootList }
-  };
+function cliStatusLabel(runtime: LocalCliRuntimeSnapshot | undefined, checking: boolean, connectionOk: boolean): string {
+  if (checking) return "检测中";
+  if (!runtime) return connectionOk ? "已登录" : "未检测";
+  if (!runtime.cliInstalled) return "未检测到";
+  if (runtime.loginState === "logged_in") return "已登录";
+  if (runtime.loginState === "not_logged_in") return "未登录";
+  return "未验证";
 }
 
-function parseUsername(value: string): string {
-  return (
-    value.match(/用户名\s*[:：]\s*([^,\r\n]+)/)?.[1]?.trim() ||
-    value.match(/username\s*[:：]\s*([^,\r\n]+)/i)?.[1]?.trim() ||
-    value.match(/name\s*[:：]\s*([^,\r\n]+)/i)?.[1]?.trim() ||
-    "已登录，用户名未解析"
-  );
-}
-
-function parseQuota(value: string): { total: string; used: string } {
-  const total =
-    value.match(/(?:总容量|总空间|total|quota)\D{0,16}([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))/i)?.[1] ??
-    "未解析";
-  const used =
-    value.match(/(?:已用|使用|used)\D{0,16}([\d.]+\s*(?:TB|GB|MB|KB|B|TiB|GiB|MiB))/i)?.[1] ??
-    "未解析";
-  return { total, used };
+function scanRuntimeStatus(result: ScanRuntimeInstallResult): string {
+  if (result.status === "python_required") return "需要先安装 Python";
+  if (result.ok) return "扫描运行时安装完成";
+  return "扫描运行时安装失败";
 }
 
 function dependencyLabel(items: DependencyItem[], name: string): string {
@@ -415,22 +403,24 @@ function formatBytes(bytes: number): string {
 
 function getDesktopApi():
   | {
-      localCliRun?: (command: { args: string[]; timeoutMs?: number }) => Promise<DesktopCommandResult>;
-      startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; pid?: number }>;
+      inspectLocalCli?: () => Promise<LocalCliRuntimeSnapshot>;
+      startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; message?: string }>;
       getLocalCliCommandLog?: () => Promise<{ cliPath: string; entries: CommandLogEntry[] }>;
       checkDependencies?: () => Promise<{ checkedAt: string; items: DependencyItem[] }>;
-      clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[] }>;
+      installScanRuntime?: () => Promise<ScanRuntimeInstallResult>;
+      clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[]; skipped?: string[] }>;
     }
   | undefined {
   if (typeof window === "undefined") return undefined;
   return (
     window as typeof window & {
       panjieDesktop?: {
-        localCliRun?: (command: { args: string[]; timeoutMs?: number }) => Promise<DesktopCommandResult>;
-        startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; pid?: number }>;
+        inspectLocalCli?: () => Promise<LocalCliRuntimeSnapshot>;
+        startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string; message?: string }>;
         getLocalCliCommandLog?: () => Promise<{ cliPath: string; entries: CommandLogEntry[] }>;
         checkDependencies?: () => Promise<{ checkedAt: string; items: DependencyItem[] }>;
-        clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[] }>;
+        installScanRuntime?: () => Promise<ScanRuntimeInstallResult>;
+        clearCache?: () => Promise<{ ok: boolean; userDataPath: string; filesDeleted: number; bytesFreed: number; errors: string[]; skipped?: string[] }>;
       };
     }
   ).panjieDesktop;
