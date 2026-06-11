@@ -2,7 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("panjieDesktop", {
   getVersion: () => ipcRenderer.invoke("app:get-version"),
-  localCliRun: (command) => ipcRenderer.invoke("local-cli:run", command)
+  localCliRun: (command) => ipcRenderer.invoke("local-cli:run", command),
+  startLocalCliLogin: () => ipcRenderer.invoke("local-cli:start-login")
 });
 
 contextBridge.exposeInMainWorld("panjieDraft", {

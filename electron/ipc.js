@@ -14,6 +14,7 @@ export function registerIpc() {
   }));
 
   ipcMain.handle("local-cli:run", async (_event, command) => runLocalCli(command));
+  ipcMain.handle("local-cli:start-login", () => startLocalCliLogin());
   ipcMain.handle("draft:read", () => readDraft());
   ipcMain.handle("draft:write", (_event, draft) => writeDraft(draft));
   ipcMain.handle("window:minimize", (event) => {
@@ -57,6 +58,27 @@ function writeDraft(draft) {
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "draft write failed" };
+  }
+}
+
+function startLocalCliLogin() {
+  const cliPath = resolveBaiduPcsGoPath();
+  if (!cliPath) {
+    return { ok: false, error: "BaiduPCS-Go executable not found" };
+  }
+
+  log("local-cli-login-window", { command: "login" });
+  try {
+    const child = spawn("cmd.exe", ["/d", "/k", `"${cliPath}" login`], {
+      detached: true,
+      shell: false,
+      stdio: "ignore",
+      windowsHide: false
+    });
+    child.unref();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "failed to open local cli login window" };
   }
 }
 

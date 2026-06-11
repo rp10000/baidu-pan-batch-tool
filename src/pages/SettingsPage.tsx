@@ -1,4 +1,5 @@
 import { Database, Info, KeyRound, ScanLine, Settings2, SlidersHorizontal } from "lucide-react";
+import { useState } from "react";
 import {
   ADAPTER_MODE_OPTIONS,
   CAPABILITY_LABELS,
@@ -24,7 +25,23 @@ const matrixRows: CapabilityKey[] = [
 export function SettingsPage() {
   const storage = useStorageMode();
   const draft = useBatchDraftStore();
+  const [loginMessage, setLoginMessage] = useState("");
+  const [loginOpening, setLoginOpening] = useState(false);
   const cliStatus = storage.connectionOk ? "已连接" : storage.checking ? "检测中" : "未登录 / 未检测到";
+
+  async function startLogin() {
+    setLoginOpening(true);
+    storage.setRequestedMode("windows_local_cli");
+    const desktop = getDesktopLoginApi();
+    if (!desktop?.startLocalCliLogin) {
+      setLoginMessage("当前不是桌面客户端。请打开 release 里的 exe 后再启动登录。");
+      setLoginOpening(false);
+      return;
+    }
+    const result = await desktop.startLocalCliLogin();
+    setLoginMessage(result.ok ? "已打开登录窗口。完成扫码/确认后，回到这里点“重新检测”。" : result.error ?? "无法打开登录窗口");
+    setLoginOpening(false);
+  }
 
   return (
     <section className="page">
@@ -49,10 +66,11 @@ export function SettingsPage() {
             <button className="secondary-btn" type="button" onClick={() => void storage.refreshCapabilities()}>
               {storage.checking ? "检测中" : "重新检测"}
             </button>
-            <button className="primary-btn" type="button" onClick={() => storage.setRequestedMode("windows_local_cli")}>
-              启动登录
+            <button className="primary-btn" type="button" onClick={() => void startLogin()}>
+              {loginOpening ? "正在打开" : "启动登录"}
             </button>
           </div>
+          {loginMessage && <p className="notice">{loginMessage}</p>}
         </Card>
 
         <Card title="处理默认值" action={<SlidersHorizontal size={18} />}>
@@ -130,6 +148,15 @@ export function SettingsPage() {
       </details>
     </section>
   );
+}
+
+function getDesktopLoginApi():
+  | {
+      startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string }>;
+    }
+  | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as typeof window & { panjieDesktop?: { startLocalCliLogin?: () => Promise<{ ok: boolean; error?: string }> } }).panjieDesktop;
 }
 
 function AdapterMatrixCard() {
