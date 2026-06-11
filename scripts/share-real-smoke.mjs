@@ -4,10 +4,19 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const cliPath = resolve(repoRoot, "tools", "baidu-cli", "BaiduPCS-Go", "BaiduPCS-Go-v4.0.1-windows-x64", "BaiduPCS-Go.exe");
+const bundledCliPath = resolve(
+  repoRoot,
+  "tools",
+  "baidu-cli",
+  "BaiduPCS-Go",
+  "BaiduPCS-Go-v4.0.1-windows-x64",
+  "BaiduPCS-Go.exe"
+);
 const localHello = resolve(repoRoot, "artifacts", "local-smoke", "share-real-hello.txt");
+const testRoot = "/\u76d8\u59ec\u6d4b\u8bd5";
 
-if (!existsSync(cliPath)) {
+const cliPath = findCli();
+if (!cliPath) {
   console.log("share: fail");
   console.log("reason: cli_not_found");
   process.exit(0);
@@ -17,22 +26,32 @@ mkdirSync(dirname(localHello), { recursive: true });
 writeFileSync(localHello, "panjie share real smoke\n", "utf8");
 
 const ts = timestampForPath(new Date());
-const remoteDir = `/盘姬测试/panjie-share-smoke-${ts}`;
+const remoteDir = `${testRoot}/panjie-share-smoke-${ts}`;
 
-run(["mkdir", "/盘姬测试"]);
+run(["mkdir", testRoot]);
 run(["mkdir", remoteDir]);
 run(["upload", localHello, `${remoteDir}/hello.txt`]);
+
 const share = run(["share", "set", "--period", "7", "-f", remoteDir]);
-const parsed = parseShareOutput(`${share.stdout}\n${share.stderr}`);
+const shareOutput = `${share.stdout}\n${share.stderr}`;
+const parsed = parseShareOutput(shareOutput);
 const valid = validateShare(parsed);
+const message = valid ? "generated_redacted" : classifyError(shareOutput);
 
 console.log(`share: ${valid ? "pass" : "fail"}`);
 console.log(`link_format: ${valid ? "valid" : "invalid"}`);
 console.log(`extract_code: ${parsed.extractCode ? "present" : "missing"}`);
-const message = valid ? "generated_redacted" : classifyError(`${share.stdout}\n${share.stderr}`);
 console.log(`message: ${message}`);
+
 if (message === "cli_path_not_absolute") {
   process.exit(1);
+}
+
+function findCli() {
+  const where = spawnSync("where.exe", ["BaiduPCS-Go"], { encoding: "utf8", windowsHide: true });
+  const found = where.status === 0 ? firstLine(where.stdout) : "";
+  if (found) return found;
+  return existsSync(bundledCliPath) ? bundledCliPath : "";
 }
 
 function run(args) {
@@ -51,8 +70,9 @@ function run(args) {
 function parseShareOutput(output) {
   const text = String(output || "");
   const shareUrl = text.match(/https?:\/\/pan\.baidu\.com\/s\/[^\s)'"<>，。；;]+/i)?.[0] ?? "";
-  const extractCode = (shareUrl ? new URL(shareUrl).searchParams.get("pwd") ?? "" : "") ||
-    text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：=]?\s*([A-Za-z0-9]{4,})/i)?.[1] ||
+  const extractCode =
+    (shareUrl ? new URL(shareUrl).searchParams.get("pwd") ?? "" : "") ||
+    text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：]?\s*([A-Za-z0-9]{4,})/i)?.[1] ||
     "";
   return { shareUrl, extractCode };
 }
@@ -71,9 +91,22 @@ function validateShare(parsed) {
 function classifyError(output) {
   const text = String(output || "");
   if (/not absolute path/i.test(text)) return "cli_path_not_absolute";
-  if (/失败|错误|error|failed/i.test(text)) return "cli_share_failed_redacted";
+  if (/(?:代码|code)\s*[:：]\s*2\b/i.test(text)) return "remote_server_code_2";
+  if (/\b(?:31045|-6)\b|请重新登录|登录状态过期|user not exists|uid\s*[:：]\s*0\b|login/i.test(text)) {
+    return "login_required";
+  }
+  if (/empty/i.test(text)) return "empty_directory";
+  if (/unsupported/i.test(text)) return "unsupported";
+  if (/(?:error|failed|fail|错误|失败)/i.test(text)) return "cli_share_failed_redacted";
   if (!/https?:\/\/pan\.baidu\.com\/s\//i.test(text)) return "no_share_url_returned";
   return "unknown";
+}
+
+function firstLine(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
 }
 
 function timestampForPath(date) {

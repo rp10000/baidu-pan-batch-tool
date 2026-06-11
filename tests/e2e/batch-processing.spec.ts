@@ -25,7 +25,7 @@ test("fast batch processing skips scan and shares the same task across pages", a
   await expect(page.getByLabel("链接识别统计")).toContainText("有效链接");
   await page.getByRole("button", { name: /开始快速处理/ }).click();
 
-  const dialog = page.getByRole("dialog", { name: "任务完成弹窗" });
+  const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Mock 演示链接");
   await expect(dialog).toContainText("不可真实访问");
@@ -34,8 +34,9 @@ test("fast batch processing skips scan and shares the same task across pages", a
   await page.screenshot({ path: "artifacts/screenshots/final-task-result-modal.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/batch-result-modal-desktop.png", fullPage: true });
 
-  await dialog.getByRole("button", { name: "复制分享信息" }).last().click();
-  await expect(page.locator(".toast")).toContainText("Mock 演示链接不可作为真实分享复制");
+  const mockCopyButtons = dialog.getByRole("button", { name: "复制分享信息" });
+  await expect(mockCopyButtons.first()).toBeDisabled();
+  await expect(mockCopyButtons.last()).toBeDisabled();
   await dialog.getByRole("button", { name: "完成" }).click();
 
   await nav.getByRole("button", { name: /分享导出/ }).click();
@@ -65,7 +66,7 @@ test("scan options run only after user selects standard scan", async ({ page }) 
   await page.screenshot({ path: "artifacts/screenshots/final-batch-scan-options.png", fullPage: true });
 
   await page.getByRole("button", { name: /开始处理并检查/ }).click();
-  const dialog = page.getByRole("dialog", { name: "任务完成弹窗" });
+  const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("清理副本");
   await page.screenshot({ path: "artifacts/screenshots/final-cleaned-copy.png", fullPage: true });
@@ -80,5 +81,6 @@ test("scan options run only after user selects standard scan", async ({ page }) 
 
 async function useMockMode(page: import("@playwright/test").Page, nav: import("@playwright/test").Locator) {
   await nav.getByRole("button", { name: /设置中心/ }).click();
+  await page.getByText("展开高级调试").click();
   await page.getByRole("button", { name: /Mock 演示模式/ }).click();
 }

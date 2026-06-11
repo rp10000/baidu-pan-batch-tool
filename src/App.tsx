@@ -7,15 +7,18 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { ShareExportPage } from "./pages/ShareExportPage";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
 import { StorageModeProvider } from "./state/storageModeStore";
+import { BatchDraftProvider } from "./state/batchDraftStore";
 import { TaskProvider } from "./state/taskStore";
 import type { PageId, ToastState } from "./types";
 
 export default function App() {
   return (
     <StorageModeProvider>
-      <TaskProvider>
-        <AppContent />
-      </TaskProvider>
+      <BatchDraftProvider>
+        <TaskProvider>
+          <AppContent />
+        </TaskProvider>
+      </BatchDraftProvider>
     </StorageModeProvider>
   );
 }

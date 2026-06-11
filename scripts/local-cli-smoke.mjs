@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const reportPath = resolve(repoRoot, "docs", "windows-cli-smoke-report.md");
 const localHelloPath = resolve(repoRoot, "artifacts", "local-smoke", "hello.txt");
-const downloadedBaiduPcsGo = resolve(
+const bundledBaiduPcsGo = resolve(
   repoRoot,
   "tools",
   "baidu-cli",
@@ -15,8 +15,12 @@ const downloadedBaiduPcsGo = resolve(
   "BaiduPCS-Go.exe"
 );
 
+const testRoot = "/\u76d8\u59ec\u6d4b\u8bd5";
+const docDirName = "\u6587\u6863";
+const renamedSmokeFile = "\u76d8\u59ec\u6d4b\u8bd5_001.txt";
+
 const candidates = [
-  { name: "BaiduPCS-Go", commands: ["BaiduPCS-Go", "baidupcs-go"], bundledPath: downloadedBaiduPcsGo },
+  { name: "BaiduPCS-Go", commands: ["BaiduPCS-Go", "baidupcs-go"], bundledPath: bundledBaiduPcsGo },
   { name: "BaiduPan-cli", commands: ["BaiduPan-cli", "baidupan-cli"] },
   { name: "baidu-pcs-cli-rs", commands: ["baidu-pcs-cli-rs"] },
   { name: "bypy", commands: ["bypy"] },
@@ -36,56 +40,71 @@ export function runLocalCliSmoke(argv = process.argv.slice(2)) {
 
   if (!detected) {
     checks.push({ name: "detect", status: "fail", message: "no local CLI detected" });
-    const report = formatReport({ detected, version, loginStatus, cliConfigDir, riskLevel, status, checks });
-    writeReport(report);
-    console.log(report);
-    return 0;
+    return finish({ detected, version, loginStatus, cliConfigDir, riskLevel, status, checks });
   }
 
   checks.push({ name: "detect", status: "pass", message: `${detected.name} detected` });
+
   const versionResult = runCli(detected.path, ["--version"], 5000);
   version = firstLine(versionResult.stdout) || "unknown";
-  checks.push({ name: "version", status: versionResult.exitCode === 0 ? "pass" : "fail", message: versionResult.exitCode === 0 ? version : "version failed" });
+  checks.push({
+    name: "version",
+    status: isFailedResult(versionResult) ? "fail" : "pass",
+    message: isFailedResult(versionResult) ? classifyCliError(outputOf(versionResult)) : version
+  });
 
   const envResult = runCli(detected.path, ["env"], 5000);
-  cliConfigDir = envResult.exitCode === 0 ? summarizeConfigDir(envResult.rawStdout) : "unknown";
+  cliConfigDir = isFailedResult(envResult) ? "unknown" : summarizeConfigDir(envResult.rawStdout);
   checks.push({
     name: "config",
-    status: envResult.exitCode === 0 ? "pass" : "skipped",
-    message: envResult.exitCode === 0 ? "BaiduPCS-Go 自身配置目录，未读取浏览器凭据" : "env command unavailable"
+    status: isFailedResult(envResult) ? "skipped" : "pass",
+    message: isFailedResult(envResult) ? "env command unavailable" : "local CLI config only; browser credentials were not read"
   });
 
   const help = runCli(detected.path, ["help"], 5000);
-  const helpText = `${help.stdout}\n${help.stderr}`;
+  const helpText = outputOf(help);
   const supportsTransfer = /transfer/i.test(helpText);
   const supportsShare = /share/i.test(helpText);
-  checks.push({ name: "help", status: help.exitCode === 0 ? "pass" : "fail", message: summarizeCapabilities(helpText) });
+  checks.push({
+    name: "help",
+    status: isFailedResult(help) ? "fail" : "pass",
+    message: summarizeCapabilities(helpText)
+  });
 
   if (requestedRelogin && !confirmedRelogin) {
-    checks.push({ name: "relogin", status: "manual_auth_required", message: "需要用户确认 --confirm-relogin；未退出当前登录态" });
+    checks.push({
+      name: "relogin",
+      status: "manual_auth_required",
+      message: "add --confirm-relogin before running the CLI login command"
+    });
     status = "manual_auth_required";
-    const report = formatReport({ detected, version, loginStatus: "relogin_confirmation_required", cliConfigDir, riskLevel, status, checks });
-    writeReport(report);
-    console.log(report);
-    return 0;
+    return finish({
+      detected,
+      version,
+      loginStatus: "relogin_confirmation_required",
+      cliConfigDir,
+      riskLevel,
+      status,
+      checks
+    });
   }
 
   if (requestedRelogin && confirmedRelogin) {
     const loginAttempt = runCli(detected.path, ["login"], 120000);
     checks.push({
       name: "login",
-      status: loginAttempt.exitCode === 0 ? "pass" : "manual_auth_required",
-      message: loginAttempt.exitCode === 0 ? "login command completed" : classifyCliError(loginAttempt.stderr || loginAttempt.stdout)
+      status: isFailedResult(loginAttempt) ? "manual_auth_required" : "pass",
+      message: isFailedResult(loginAttempt) ? classifyCliError(outputOf(loginAttempt)) : "login command completed"
     });
   }
 
   const who = runCli(detected.path, ["who"], 10000);
-  if (who.exitCode === 0) {
+  if (!isFailedResult(who) && !isInvalidWhoOutput(outputOf(who))) {
     loginStatus = "logged_in";
     checks.push({ name: "whoami", status: "pass", message: "logged_in_redacted" });
   } else {
     loginStatus = "manual_auth_required";
-    checks.push({ name: "whoami", status: "manual_auth_required", message: "manual_auth_required" });
+    checks.push({ name: "whoami", status: "manual_auth_required", message: classifyCliError(outputOf(who)) });
   }
 
   if (loginStatus !== "logged_in") {
@@ -96,36 +115,48 @@ export function runLocalCliSmoke(argv = process.argv.slice(2)) {
     checks.push({ name: "transfer", status: "blocked_missing_test_share", message: "not_logged_in" });
     checks.push({ name: "share", status: supportsShare ? "skipped" : "fail", message: supportsShare ? "not_logged_in" : "unsupported" });
     status = "manual_auth_required";
-  } else {
-    mkdirSync(dirname(localHelloPath), { recursive: true });
-    writeFileSync(localHelloPath, "hello from panjie local cli smoke\n", "utf8");
-    const ts = timestampForPath(new Date());
-    const root = "/盘姬测试";
-    const smokeDir = `${root}/panjie-smoke-${ts}`;
-    const docDir = `${smokeDir}/文档`;
-    const transferDir = `${root}/panjie-transfer-smoke-${ts}`;
+    return finish({ detected, version, loginStatus, cliConfigDir, riskLevel, status, checks });
+  }
 
-    checks.push(runCliCheck(detected.path, "ls", ["ls", root]));
-    checks.push(runCliCheck(detected.path, "mkdir", ["mkdir", smokeDir]));
-    checks.push(runCliCheck(detected.path, "upload", ["upload", localHelloPath, `${smokeDir}/hello.txt`]));
-    checks.push(runCliCheck(detected.path, "rename", ["mv", `${smokeDir}/hello.txt`, `${smokeDir}/盘姬测试_001.txt`]));
-    checks.push(runCliCheck(detected.path, "mkdir category", ["mkdir", docDir]));
-    checks.push(runCliCheck(detected.path, "mv", ["mv", `${smokeDir}/盘姬测试_001.txt`, `${docDir}/盘姬测试_001.txt`]));
+  mkdirSync(dirname(localHelloPath), { recursive: true });
+  writeFileSync(localHelloPath, "hello from panjie local cli smoke\n", "utf8");
 
-    const shareCheck = supportsShare ? runShareCheck(detected.path, smokeDir) : { check: { name: "share", status: "fail", message: "unsupported" } };
-    checks.push(shareCheck.check);
-    checks.push(runTransferCheck({
+  const ts = timestampForPath(new Date());
+  const smokeDir = `${testRoot}/panjie-smoke-${ts}`;
+  const docDir = `${smokeDir}/${docDirName}`;
+  const transferDir = `${testRoot}/panjie-transfer-smoke-${ts}`;
+
+  checks.push(runCliCheck(detected.path, "ls", ["ls", testRoot]));
+  checks.push(runCliCheck(detected.path, "mkdir", ["mkdir", smokeDir]));
+  checks.push(runCliCheck(detected.path, "upload", ["upload", localHelloPath, `${smokeDir}/hello.txt`]));
+  checks.push(runCliCheck(detected.path, "rename", ["mv", `${smokeDir}/hello.txt`, `${smokeDir}/${renamedSmokeFile}`]));
+  checks.push(runCliCheck(detected.path, "mkdir category", ["mkdir", docDir]));
+  checks.push(runCliCheck(detected.path, "mv", ["mv", `${smokeDir}/${renamedSmokeFile}`, `${docDir}/${renamedSmokeFile}`]));
+
+  const shareCheck = supportsShare
+    ? runShareCheck(detected.path, smokeDir)
+    : { check: { name: "share", status: "fail", message: "unsupported" }, share: undefined };
+  checks.push(shareCheck.check);
+  checks.push(
+    runTransferCheck({
       cliPath: detected.path,
       supportsTransfer,
       transferDir,
       inMemoryShare: shareCheck.share
-    }));
-    status = checks.some((item) => item.status === "fail" || item.status === "blocked_missing_test_share" || item.status === "same_account_transfer_unsupported")
+    })
+  );
+
+  status = checks.some((item) => item.status === "fail")
+    ? "diagnostic"
+    : checks.some((item) => item.status === "blocked_missing_test_share" || item.status === "same_account_transfer_unsupported")
       ? "diagnostic"
       : "pass";
-  }
 
-  const report = formatReport({ detected, version, loginStatus, cliConfigDir, riskLevel, status, checks });
+  return finish({ detected, version, loginStatus, cliConfigDir, riskLevel, status, checks });
+}
+
+function finish(input) {
+  const report = formatReport(input);
   writeReport(report);
   console.log(report);
   return 0;
@@ -152,15 +183,16 @@ function where(command) {
 
 function runShareCheck(cliPath, remotePath) {
   const result = runCli(cliPath, ["share", "set", "--period", "7", "-f", remotePath], 120000);
-  const share = result.exitCode === 0 ? extractShareData(result.rawStdout || result.rawStderr) : undefined;
-  const failedOutput = /失败|错误|error|failed/i.test(result.rawStdout || result.rawStderr);
+  const failed = isFailedResult(result);
+  const share = failed ? undefined : extractShareData(outputOf(result));
+
   return {
     check: {
       name: "share",
-      status: result.exitCode === 0 && share?.url && !failedOutput ? "pass" : "fail",
-      message: result.exitCode === 0 && share?.url && !failedOutput ? "generated_redacted" : classifyCliError(result.stderr || result.stdout)
+      status: share?.url ? "pass" : "fail",
+      message: share?.url ? "generated_redacted" : classifyCliError(outputOf(result))
     },
-    share: result.exitCode === 0 && !failedOutput ? share : undefined
+    share: share?.url ? share : undefined
   };
 }
 
@@ -179,13 +211,13 @@ function runTransferCheck({ cliPath, supportsTransfer, transferDir, inMemoryShar
   }
 
   const mkdir = runCli(cliPath, ["mkdir", transferDir], 60000);
-  if (mkdir.exitCode !== 0) {
-    return { name: "transfer", status: "fail", message: `mkdir target failed: ${classifyCliError(mkdir.stderr || mkdir.stdout)}` };
+  if (isFailedResult(mkdir)) {
+    return { name: "transfer", status: "fail", message: `mkdir target failed: ${classifyCliError(outputOf(mkdir))}` };
   }
 
   const cd = runCli(cliPath, ["cd", transferDir], 60000);
-  if (cd.exitCode !== 0) {
-    return { name: "transfer", status: "fail", message: `cd target failed: ${classifyCliError(cd.stderr || cd.stdout)}` };
+  if (isFailedResult(cd)) {
+    return { name: "transfer", status: "fail", message: `cd target failed: ${classifyCliError(outputOf(cd))}` };
   }
 
   const transferArgs = ["transfer", share.url];
@@ -193,16 +225,16 @@ function runTransferCheck({ cliPath, supportsTransfer, transferDir, inMemoryShar
   const transfer = runCli(cliPath, transferArgs, 180000);
   runCli(cliPath, ["cd", "/"], 30000);
 
-  if (transfer.exitCode !== 0) {
-    const message = classifyTransferError(transfer.stderr || transfer.stdout);
+  if (isFailedResult(transfer)) {
+    const message = classifyTransferError(outputOf(transfer));
     return { name: "transfer", status: message === "same_account_transfer_unsupported" ? "same_account_transfer_unsupported" : "fail", message };
   }
 
   const ls = runCli(cliPath, ["ls", transferDir], 60000);
   return {
     name: "transfer",
-    status: ls.exitCode === 0 ? "pass" : "fail",
-    message: ls.exitCode === 0 ? (envShare ? "env_test_share_passed" : "in_memory_self_share_passed") : classifyCliError(ls.stderr || ls.stdout)
+    status: isFailedResult(ls) ? "fail" : "pass",
+    message: isFailedResult(ls) ? classifyCliError(outputOf(ls)) : envShare ? "env_test_share_passed" : "in_memory_self_share_passed"
   };
 }
 
@@ -210,8 +242,8 @@ function runCliCheck(cliPath, name, args) {
   const result = runCli(cliPath, args, 120000);
   return {
     name,
-    status: result.exitCode === 0 ? "pass" : "fail",
-    message: result.exitCode === 0 ? "ok" : classifyCliError(result.stderr || result.stdout)
+    status: isFailedResult(result) ? "fail" : "pass",
+    message: isFailedResult(result) ? classifyCliError(outputOf(result)) : "ok"
   };
 }
 
@@ -231,6 +263,29 @@ function runCli(cliPath, args, timeoutMs) {
   };
 }
 
+function outputOf(result) {
+  return `${result.rawStdout || result.stdout || ""}\n${result.rawStderr || result.stderr || ""}`;
+}
+
+function isFailedResult(result) {
+  return result.exitCode !== 0 || result.timedOut || hasBusinessError(outputOf(result));
+}
+
+function hasBusinessError(value) {
+  const text = String(value || "");
+  return /(?:error|failed|fail|errno|errcode|错误|失败|请重新登录|登录状态过期|user not exists)/i.test(text) ||
+    /(?:代码|code)\s*[:：]\s*-?\d+/i.test(text) ||
+    /\b(?:31045|-6)\b/.test(text);
+}
+
+function isInvalidWhoOutput(value) {
+  const text = String(value || "");
+  return hasBusinessError(text) ||
+    /uid\s*[:：]\s*0\b/i.test(text) ||
+    /username\s*[:：]\s*(?:,|\r?\n|$)/i.test(text) ||
+    /用户名\s*[:：]\s*(?:,|\r?\n|$)/.test(text);
+}
+
 function formatReport(input) {
   const lines = [
     "# Windows Local CLI Smoke Report",
@@ -248,7 +303,7 @@ function formatReport(input) {
     "- loginStateSource: BaiduPCS-Go local config, not browser credentials",
     `- configDir: ${input.cliConfigDir}`,
     `- riskLevel: ${input.riskLevel}`,
-    "- testRoot: 盘姬测试",
+    `- testRoot: ${testRoot}`,
     "",
     "## Safety",
     "",
@@ -263,9 +318,11 @@ function formatReport(input) {
     "| check | status | message |",
     "| --- | --- | --- |"
   ];
+
   for (const check of input.checks) {
     lines.push(`| ${check.name} | ${check.status} | ${redact(check.message)} |`);
   }
+
   return `${lines.join("\n")}\n`;
 }
 
@@ -275,20 +332,24 @@ function writeReport(report) {
 }
 
 function classifyCliError(value) {
-  const lower = value.toLowerCase();
-  if (lower.includes("not absolute path")) return "cli_path_not_absolute";
-  if (lower.includes("unsupported")) return "unsupported";
-  if (lower.includes("login") || value.includes("未登录")) return "not_logged_in";
-  if (lower.includes("timeout")) return "timeout";
+  const text = String(value || "");
+  if (/not absolute path/i.test(text)) return "cli_path_not_absolute";
+  if (/(?:代码|code)\s*[:：]\s*2\b/i.test(text)) return "remote_server_code_2";
+  if (/\b(?:31045|-6)\b|请重新登录|登录状态过期|user not exists|uid\s*[:：]\s*0\b|not_logged_in|login/i.test(text)) {
+    return "login_required";
+  }
+  if (/empty/i.test(text)) return "empty_directory";
+  if (/unsupported/i.test(text)) return "unsupported";
+  if (/timeout/i.test(text)) return "timeout";
+  if (!text.trim()) return "failed";
   return "failed";
 }
 
 function classifyTransferError(value) {
-  const lower = String(value || "").toLowerCase();
-  if (lower.includes("unsupported")) return "unsupported";
-  if (lower.includes("same account") || value.includes("自己") || value.includes("相同账号")) return "same_account_transfer_unsupported";
-  if (lower.includes("login") || value.includes("未登录")) return "not_logged_in";
-  return classifyCliError(value);
+  const text = String(value || "");
+  if (/unsupported/i.test(text)) return "unsupported";
+  if (/same account/i.test(text) || /相同账号|自己/.test(text)) return "same_account_transfer_unsupported";
+  return classifyCliError(text);
 }
 
 function summarizeCapabilities(text) {
@@ -308,14 +369,17 @@ function extractShareData(value) {
   const url = text.match(/https?:\/\/pan\.baidu\.com\/s\/[^\s)'"<>]+/i)?.[0];
   if (!url) return undefined;
   const extractCode =
-    text.match(/(?:提取码|提取密码|密码|pwd)\s*[:：=]?\s*([A-Za-z0-9]{4,})/i)?.[1] ??
+    text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：]?\s*([A-Za-z0-9]{4,})/i)?.[1] ??
     url.match(/[?&]pwd=([A-Za-z0-9]{4,})/i)?.[1] ??
     "";
   return { url, extractCode };
 }
 
 function firstLine(value) {
-  return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
 }
 
 function timestampForPath(date) {
@@ -332,7 +396,7 @@ function redactPath(value) {
 function redact(value) {
   return String(value ?? "")
     .replace(/https?:\/\/pan\.baidu\.com\/s\/[^\s)]+/gi, "<redacted-share-url>")
-    .replace(/(?:提取码|提取密码|extract\s*code|pwd|TEST_SHARE_EXTRACT_CODE|TEST_SHARE_PWD)\s*[:：=]?\s*[A-Za-z0-9]{4,}/gi, "extractCode: <redacted>")
+    .replace(/(?:提取码|提取密码|extract\s*code|pwd|TEST_SHARE_EXTRACT_CODE|TEST_SHARE_PWD)\s*[:：]?\s*[A-Za-z0-9]{4,}/gi, "extractCode: <redacted>")
     .replace(/(?:BDUSS|STOKEN|access[_-]?token|refresh[_-]?token)\s*[:=]\s*[^\s;]+/gi, "<redacted-auth-field>");
 }
 

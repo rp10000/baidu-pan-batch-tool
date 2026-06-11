@@ -47,7 +47,7 @@ describe("BaiduPcsGoAdapter share parsing", () => {
     const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/help"], periodDays: 7 });
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("未返回可用分享链接");
+    expect(result.error).toContain("未解析到真实分享链接");
   });
 
   it("fails when output contains an error even with exit code zero", async () => {
@@ -60,7 +60,7 @@ describe("BaiduPcsGoAdapter share parsing", () => {
     const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/fail"], periodDays: 7 });
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("创建分享链接");
+    expect(result.error).toContain("百度服务端拒绝创建分享");
   });
 
   it("keeps the parser independent for multi-line Chinese output", () => {

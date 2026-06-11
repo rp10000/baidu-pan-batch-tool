@@ -9,10 +9,13 @@ const allowedLocalCliCommands = new Set(["--version", "help", "who", "login", "l
 export function registerIpc() {
   ipcMain.handle("app:get-version", () => ({
     productName: "盘姬批量助手",
-    mode: "windows-desktop"
+    mode: "windows-desktop",
+    userDataPath: app.getPath("userData")
   }));
 
   ipcMain.handle("local-cli:run", async (_event, command) => runLocalCli(command));
+  ipcMain.handle("draft:read", () => readDraft());
+  ipcMain.handle("draft:write", (_event, draft) => writeDraft(draft));
   ipcMain.handle("window:minimize", (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
@@ -30,6 +33,31 @@ export function registerIpc() {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
   ipcMain.handle("window:is-maximized", (event) => Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized()));
+}
+
+function draftPath() {
+  return path.join(app.getPath("userData"), "draft.local.json");
+}
+
+function readDraft() {
+  try {
+    const filePath = draftPath();
+    if (!fs.existsSync(filePath)) return undefined;
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+function writeDraft(draft) {
+  try {
+    const filePath = draftPath();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(draft, null, 2), "utf8");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "draft write failed" };
+  }
 }
 
 function runLocalCli(command) {

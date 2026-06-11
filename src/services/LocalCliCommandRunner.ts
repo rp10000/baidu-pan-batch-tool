@@ -1,3 +1,5 @@
+import { classifyShareFailure } from "./ShareFailureClassifier";
+
 export interface LocalCliCommand {
   args: string[];
   timeoutMs?: number;
@@ -69,8 +71,10 @@ export function normalizeCliError(value: string): string {
   if (lower.includes("not absolute path")) {
     return "路径错误：CLI 需要绝对网盘路径";
   }
-  if (lower.includes("login") || text.includes("未登录")) {
-    return "Windows 本地 CLI 未登录";
+  if (lower.includes("login") || text.includes("未登录") || text.includes("请重新登录") || text.includes("登录状态过期") || lower.includes("user not exists")) {
+    return "BaiduPCS-Go 登录已失效，请重新登录";
   }
+  const shareFailure = classifyShareFailure(text);
+  if (shareFailure.type !== "unknown") return shareFailure.message;
   return text || "Windows 本地 CLI 执行失败";
 }

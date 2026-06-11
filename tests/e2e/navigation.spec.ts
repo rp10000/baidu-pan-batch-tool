@@ -47,16 +47,23 @@ test("mobile viewport has no page-level horizontal overflow", async ({ page }) =
   expect(hasOverflow).toBe(false);
 });
 
-test("settings page shows oauth preparation card", async ({ page }) => {
+test("settings page starts in simple mode and keeps advanced debug collapsed", async ({ page }) => {
   await page.goto("/");
   await page.locator('nav[aria-label="主导航"]').getByRole("button", { name: /设置中心/ }).click();
 
   await expect(page.getByRole("heading", { name: "设置中心" })).toBeVisible();
-  await expect(page.getByText("百度网盘 OAuth 准备状态")).toBeVisible();
-  await expect(page.getByText("App Key：未填写")).toBeVisible();
-  await expect(page.getByRole("button", { name: "运行准备检查" })).toBeVisible();
+  await expect(page.getByText("百度网盘连接")).toBeVisible();
+  await expect(page.getByText("处理默认值")).toBeVisible();
+  await expect(page.getByText("扫描配置")).toBeVisible();
+  await expect(page.getByText("数据与缓存")).toBeVisible();
+  await expect(page.getByText("关于")).toBeVisible();
+  await expect(page.getByText("能力矩阵")).toBeHidden();
 
-  await page.screenshot({ path: "artifacts/screenshots/oauth-prep-settings-card.png", fullPage: true });
+  await page.screenshot({ path: "artifacts/screenshots/settings-simple.png", fullPage: true });
+  await page.getByText("展开高级调试").click();
+  await expect(page.getByText("能力矩阵")).toBeVisible();
+  await expect(page.getByText("官方 OAuth 预留")).toBeVisible();
+  await page.screenshot({ path: "artifacts/screenshots/settings-advanced-expanded.png", fullPage: true });
 });
 
 test("settings and batch pages show local cli mode", async ({ page }) => {
@@ -64,14 +71,14 @@ test("settings and batch pages show local cli mode", async ({ page }) => {
   const nav = page.locator('nav[aria-label="主导航"]');
 
   await nav.getByRole("button", { name: /设置中心/ }).click();
-  await expect(page.getByRole("heading", { name: "Windows 本地 CLI 模式" })).toBeVisible();
-  await expect(page.getByText("BaiduPCS-Go v4.0.1")).toBeVisible();
-  await expect(page.getByText("transfer / share 已检测，transfer 等待测试分享链接")).toBeVisible();
+  await expect(page.getByText("百度网盘连接")).toBeVisible();
+  await expect(page.getByText("当前 CLI：BaiduPCS-Go")).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-settings-overview.png", fullPage: true });
+  await page.getByText("展开高级调试").click();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-capability-matrix.png", fullPage: true });
 
-  await page.getByRole("button", { name: "切换为此模式" }).click();
   await nav.getByRole("button", { name: /批量处理/ }).click();
-  await expect(page.getByText("当前接入：Windows 本地 CLI。支持文件管理、转存与分享能力检测", { exact: false })).toBeVisible();
+  await expect(page.getByText("当前模式")).toBeVisible();
+  await expect(page.getByText("分享链接转存还未真实验证")).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-batch-ready-or-blocked.png", fullPage: true });
 });

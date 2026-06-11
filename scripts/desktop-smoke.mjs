@@ -111,6 +111,8 @@ async function verifyUi(page) {
 
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await verifyBatchLayout(page, { width: 1440, height: 900 });
+  await verifyDraftPersistence(page, nav);
+  await verifyFailureStateAndToast(page);
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-batch.png"), fullPage: true });
   await page.screenshot({ path: path.join(screenshotsDir, "share-path-fixed-or-error.png"), fullPage: true });
 
@@ -130,13 +132,120 @@ async function verifyUi(page) {
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await nav.getByRole("button", { name: /设置中心/ }).click();
-  await page.getByRole("heading", { name: "Windows 本地 CLI 模式" }).waitFor({ timeout: 5_000 });
-  await page.getByText("BaiduPCS-Go v4.0.1").waitFor({ timeout: 5_000 });
+  await verifySettingsSimpleMode(page);
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-settings-cli.png"), fullPage: true });
 
   if (consoleErrors.length > 0) {
     throw new Error(`renderer console errors: ${consoleErrors.join(" | ")}`);
   }
+}
+
+async function verifyDraftPersistence(page, nav) {
+  const draft = [
+    "https://pan.baidu.com/s/1desktopDraftA 提取码: a111",
+    "https://pan.baidu.com/s/1desktopDraftB 提取码: b222",
+    "https://pan.baidu.com/s/1desktopDraftC 提取码: c333"
+  ].join("\n");
+  const input = page.locator("#share-input");
+  await page.getByRole("button", { name: "清空" }).click();
+  await input.fill(draft);
+  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
+  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await input.waitFor({ timeout: 5_000 });
+  if ((await input.inputValue()) !== draft) {
+    throw new Error("batch draft input was not preserved after page navigation");
+  }
+  await page.screenshot({ path: path.join(screenshotsDir, "fix-batch-input-persist.png"), fullPage: true });
+  await page.getByRole("button", { name: "清空" }).click();
+  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await nav.getByRole("button", { name: /批量处理/ }).click();
+  if ((await input.inputValue()) !== "") {
+    throw new Error("batch draft restored sample/input after clear");
+  }
+  await page.getByRole("button", { name: "恢复示例输入" }).click();
+  if (!(await input.inputValue()).includes("https://pan.baidu.com/s/1abcDEF")) {
+    throw new Error("restore sample input button did not restore sample");
+  }
+  await page.getByRole("button", { name: "清空" }).click();
+}
+
+async function verifyFailureStateAndToast(page) {
+  await installShareCode2FakeCli(page);
+  await page.locator("#share-input").fill("https://pan.baidu.com/s/1desktopFailure 1234");
+  await page.getByRole("button", { name: /开始快速处理/ }).click();
+  const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
+  await dialog.waitFor({ timeout: 30_000 });
+  const text = await dialog.innerText();
+  if (/任务完成/.test(text)) {
+    throw new Error("failure dialog still displays task completed wording");
+  }
+  const copyButtons = dialog.getByRole("button", { name: "复制分享信息" });
+  if (!(await copyButtons.first().isDisabled()) || !(await copyButtons.last().isDisabled())) {
+    throw new Error("copy share buttons are enabled while share failed");
+  }
+  await dialog.getByRole("button", { name: "查看失败原因" }).click();
+  const toast = page.locator(".toast.show");
+  await toast.waitFor({ timeout: 5_000 });
+  const toastBox = await toast.boundingBox();
+  const primaryBox = await page.getByRole("button", { name: /开始快速处理|处理中/ }).first().boundingBox();
+  if (toastBox && primaryBox && rectanglesOverlap(toastBox, primaryBox)) {
+    throw new Error("toast overlaps the primary batch action");
+  }
+  await page.screenshot({ path: path.join(screenshotsDir, "fix-share-failed-partial.png"), fullPage: true });
+  await dialog.getByRole("button", { name: "完成" }).click();
+}
+
+async function installShareCode2FakeCli(page) {
+  await page.evaluate(() => {
+    const api = window.panjieDesktop;
+    if (!api || typeof api.localCliRun !== "function") return false;
+
+    api.localCliRun = async (command) => {
+      const args = command.args || [];
+      const text = args.join(" ");
+      if (args[0] === "who") {
+        return { exitCode: 0, stdout: "uid: 10001, username: redacted", stderr: "", timedOut: false };
+      }
+      if (args.includes("--version")) {
+        return { exitCode: 0, stdout: "BaiduPCS-Go fake-desktop", stderr: "", timedOut: false };
+      }
+      if (args[0] === "ls") {
+        return { exitCode: 0, stdout: "2026-01-01 00:00:00 1024 course.mp4", stderr: "", timedOut: false };
+      }
+      if (args[0] === "share" && args[1] === "set") {
+        return { exitCode: 0, stdout: "\u8fdc\u7aef\u670d\u52a1\u5668\u8fd4\u56de\u9519\u8bef\uff0c\u4ee3\u7801: 2", stderr: "", timedOut: false };
+      }
+      if (args[0] === "share" && args[1] === "list") {
+        return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
+      }
+      if (/mkdir|cd|transfer|mv|upload/.test(text)) {
+        return { exitCode: 0, stdout: "ok", stderr: "", timedOut: false };
+      }
+      return { exitCode: 0, stdout: "ok", stderr: "", timedOut: false };
+    };
+    return true;
+  }).catch(() => false);
+}
+
+async function verifySettingsSimpleMode(page) {
+  await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
+  await page.getByText("百度网盘连接").waitFor({ timeout: 5_000 });
+  await page.getByText("处理默认值").waitFor({ timeout: 5_000 });
+  await page.getByText("扫描配置").waitFor({ timeout: 5_000 });
+  await page.getByText("数据与缓存").waitFor({ timeout: 5_000 });
+  await page.getByText("关于").waitFor({ timeout: 5_000 });
+  if (await page.getByText("能力矩阵").isVisible()) {
+    throw new Error("advanced debug is expanded by default");
+  }
+  await page.screenshot({ path: path.join(screenshotsDir, "settings-simple.png"), fullPage: true });
+  await page.getByText("展开高级调试").click();
+  await page.getByText("能力矩阵").waitFor({ timeout: 5_000 });
+  await page.screenshot({ path: path.join(screenshotsDir, "settings-advanced-expanded.png"), fullPage: true });
+}
+
+function rectanglesOverlap(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
 async function verifyCustomChrome(page) {
@@ -153,6 +262,11 @@ async function verifyCustomChrome(page) {
 }
 
 async function verifyBatchLayout(page, size) {
+  await page.evaluate(() => {
+    document.querySelector(".page-stage")?.scrollTo(0, 0);
+    document.querySelector(".batch-left")?.scrollTo(0, 0);
+    document.querySelector(".batch-right")?.scrollTo(0, 0);
+  });
   await page.getByRole("heading", { name: "批量处理" }).waitFor({ timeout: 5_000 });
   await page.getByText("快速转存模式").waitFor({ timeout: 5_000 });
   await page.getByText("检查二维码").waitFor({ timeout: 5_000 });

@@ -3,6 +3,7 @@ import type { RemoteFile, StorageCapabilities } from "./StorageAdapter";
 import type { LocalCliCommandRunner } from "../services/LocalCliCommandRunner";
 import { normalizeCliError, redactCliOutput } from "../services/LocalCliCommandRunner";
 import { assertCliAbsolutePath, toCliAbsolutePath, toDisplayPath } from "../services/RemotePathService";
+import { classifyShareFailure, hasCliBusinessError, isInvalidWhoOutput } from "../services/ShareFailureClassifier";
 import { verifyShareResult } from "../services/ShareVerificationService";
 
 interface GenericBaiduCliProfile {
@@ -22,6 +23,7 @@ interface GenericBaiduCliProfile {
     move: (remotePath: string, targetPath: string) => string[];
     transfer: (url: string, extractCode?: string) => string[];
     share: (remotePaths: string[], periodDays: 0 | 1 | 7 | 30) => string[];
+    shareList: () => string[];
   };
 }
 
@@ -82,7 +84,7 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
 
   async checkLogin(): Promise<{ ok: boolean; status: LocalCliStatus; displayName?: string; message: string }> {
     const result = await this.runner.run({ args: this.profile.commands.who, timeoutMs: 10000 });
-    if (result.exitCode === 0) {
+    if (result.exitCode === 0 && !isInvalidWhoOutput(`${result.stdout}\n${result.stderr}`)) {
       return { ok: true, status: "logged_in", displayName: "已脱敏", message: "Windows 本地 CLI 已登录" };
     }
     return { ok: false, status: "not_logged_in", message: normalizeCliError(result.stderr || result.stdout) };
@@ -110,18 +112,18 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
     }
     const targetDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.targetDirectory));
     const mkdir = await this.runner.run({ args: this.profile.commands.mkdir(targetDirectory), timeoutMs: 30000 });
-    if (mkdir.exitCode !== 0) {
+    if (isFailedResult(mkdir)) {
       return { ok: false, error: normalizeCliError(mkdir.stderr || mkdir.stdout) };
     }
 
     const cd = await this.runner.run({ args: this.profile.commands.cd(targetDirectory), timeoutMs: 30000 });
-    if (cd.exitCode !== 0) {
+    if (isFailedResult(cd)) {
       return { ok: false, error: normalizeCliError(cd.stderr || cd.stdout) };
     }
 
     try {
       const result = await this.runner.run({ args: this.profile.commands.transfer(input.url, input.extractCode), timeoutMs: 120000 });
-      return result.exitCode === 0
+      return !isFailedResult(result)
         ? { ok: true, remotePath: toDisplayPath(targetDirectory), raw: redactCliOutput(result.stdout) }
         : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
     } finally {
@@ -132,7 +134,7 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
   async listFiles(input: { remoteDirectory: string }): Promise<RemoteFile[]> {
     const remoteDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.remoteDirectory));
     const result = await this.runner.run({ args: this.profile.commands.ls(remoteDirectory), timeoutMs: 30000 });
-    if (result.exitCode !== 0) return [];
+    if (isFailedResult(result)) return [];
     return parsePlainFileList(result.stdout, toDisplayPath(remoteDirectory));
   }
 
@@ -168,19 +170,22 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
     }
     const remotePaths = input.remotePaths.map((remotePath) => assertCliAbsolutePath(toCliAbsolutePath(remotePath)));
     const result = await this.runner.run({ args: this.profile.commands.share(remotePaths, input.periodDays), timeoutMs: 60000 });
-    if (result.exitCode !== 0) {
-      return { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
-    }
-
     const parsed = parseBaiduShareOutput(`${result.stdout}\n${result.stderr}`);
-    if (!parsed.shareUrl || parsed.failed) {
-      return { ok: false, error: parsed.error || "创建分享链接失败：CLI 未返回可用分享链接" };
+    const listFallback = !parsed.shareUrl || parsed.failed || isFailedResult(result)
+      ? parseBaiduShareOutput(await this.readShareListOutput())
+      : undefined;
+    const best = listFallback?.shareUrl && !listFallback.failed ? listFallback : parsed;
+    if (isFailedResult(result) && !best.shareUrl) {
+      return { ok: false, error: classifyShareFailure(result.stderr || result.stdout).message };
+    }
+    if (!best.shareUrl || best.failed) {
+      return { ok: false, error: best.error || classifyShareFailure(result.stdout || result.stderr, "no_share_link_in_output").message };
     }
 
     const verification = verifyShareResult({
       source: "local_cli",
-      shareUrl: parsed.shareUrl,
-      extractCode: parsed.extractCode
+      shareUrl: best.shareUrl,
+      extractCode: best.extractCode
     });
     if (verification !== "format_valid") {
       return { ok: false, error: `创建分享链接失败：${verification}` };
@@ -189,18 +194,27 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
     return {
       ok: true,
       source: "local_cli" as const,
-      shareUrl: parsed.shareUrl,
-      extractCode: parsed.extractCode,
-      expireAt: parsed.expireAt,
+      shareUrl: best.shareUrl,
+      extractCode: best.extractCode,
+      expireAt: best.expireAt,
       verified: true,
       redactedForLog: "<redacted-share-url>",
       periodDays: input.periodDays
     };
   }
 
-  private okResult(result: { exitCode: number; stdout: string; stderr: string }) {
-    return result.exitCode === 0 ? { ok: true } : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+  private async readShareListOutput(): Promise<string> {
+    const result = await this.runner.run({ args: this.profile.commands.shareList(), timeoutMs: 60000 });
+    return `${result.stdout}\n${result.stderr}`;
   }
+
+  private okResult(result: { exitCode: number; stdout: string; stderr: string }) {
+    return !isFailedResult(result) ? { ok: true } : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+  }
+}
+
+function isFailedResult(result: { exitCode: number; stdout: string; stderr: string }): boolean {
+  return result.exitCode !== 0 || hasCliBusinessError(`${result.stdout}\n${result.stderr}`);
 }
 
 function firstLine(value: string): string | undefined {
@@ -248,11 +262,12 @@ export function parseBaiduShareOutput(output: string): {
   const extractCode = codeFromUrl ?? text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：=]?\s*([A-Za-z0-9]{4,})/i)?.[1];
   const expireAt = text.match(/(?:有效期|过期时间|expire)\s*[:：=]?\s*([0-9-]{8,10}|永久|0)/i)?.[1];
   const failed = /失败|错误|error|failed|errno|errcode/i.test(text);
+  const failure = classifyShareFailure(text, "no_share_link_in_output");
   return {
     shareUrl,
     extractCode,
     expireAt,
     failed,
-    error: failed ? normalizeCliError(text) : undefined
+    error: failed ? failure.message : undefined
   };
 }

@@ -11,6 +11,10 @@ export function TaskResultModal({
   onClose,
   onCopy,
   onOpenShare,
+  onRetryShare,
+  onOpenOutput,
+  onManualShareGuide,
+  onViewFailureReason,
   onViewDetails,
   onExportJson,
   onExportCsv
@@ -20,6 +24,10 @@ export function TaskResultModal({
   onClose: () => void;
   onCopy: () => void;
   onOpenShare: () => void;
+  onRetryShare: () => void;
+  onOpenOutput: () => void;
+  onManualShareGuide: () => void;
+  onViewFailureReason: () => void;
   onViewDetails: () => void;
   onExportJson: () => void;
   onExportCsv: () => void;
@@ -27,14 +35,16 @@ export function TaskResultModal({
   if (!open || !task) return null;
   const title = resultTitle(task);
   const tone = task.status === "failed" ? "failed" : task.status === "partial_completed" ? "partial" : "success";
+  const canCopyShare = Boolean(task.shareResult && task.shareResult.source !== "mock" && !task.shareError);
+  const hasShareFailure = Boolean(task.shareError);
 
   return (
-    <div className="modal-card result-modal" role="dialog" aria-label="任务完成弹窗">
+    <div className="modal-card result-modal" role="dialog" aria-label="任务结果弹窗">
       <button className="icon-close" type="button" onClick={onClose} aria-label="关闭">
         <X size={18} />
       </button>
       <div className="modal-title">
-        <span className={`success-mark ${tone}`}>{task.status === "failed" ? "!" : "✓"}</span>
+        <span className={`success-mark ${tone}`}>{task.status === "failed" || task.status === "partial_completed" ? "!" : "✓"}</span>
         {title}
       </div>
       <PipelineSteps task={task} />
@@ -60,6 +70,22 @@ export function TaskResultModal({
       <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} onOpen={onOpenShare} />
       <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />
       <div className="modal-actions">
+        {hasShareFailure && (
+          <>
+            <button className="primary-btn" type="button" onClick={onRetryShare}>
+              重新创建分享
+            </button>
+            <button className="secondary-btn" type="button" onClick={onOpenOutput}>
+              打开输出目录
+            </button>
+            <button className="secondary-btn" type="button" onClick={onManualShareGuide}>
+              手动分享指引
+            </button>
+            <button className="secondary-btn" type="button" onClick={onViewFailureReason}>
+              查看失败原因
+            </button>
+          </>
+        )}
         <button className="secondary-btn" type="button" onClick={onViewDetails}>
           查看详情
         </button>
@@ -69,7 +95,7 @@ export function TaskResultModal({
         <button className="secondary-btn" type="button" onClick={onExportCsv}>
           导出 CSV
         </button>
-        <button className="secondary-btn" type="button" onClick={onCopy}>
+        <button className="secondary-btn" type="button" onClick={onCopy} disabled={!canCopyShare}>
           复制分享信息
         </button>
         <button className="primary-btn" type="button" onClick={onClose}>

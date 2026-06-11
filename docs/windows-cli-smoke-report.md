@@ -1,7 +1,7 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-11T06:21:43.396Z
-status: diagnostic
+generatedAt: 2026-06-11T08:30:00.473Z
+status: manual_auth_required
 
 ## CLI
 
@@ -9,11 +9,11 @@ status: diagnostic
 - name: BaiduPCS-Go
 - path: <repo>\tools\baidu-cli\BaiduPCS-Go\BaiduPCS-Go-v4.0.1-windows-x64\BaiduPCS-Go.exe
 - version: BaiduPCS-Go version v4.0.1
-- loginStatus: logged_in
+- loginStatus: manual_auth_required
 - loginStateSource: BaiduPCS-Go local config, not browser credentials
 - configDir: %APPDATA%/BaiduPCS-Go
 - riskLevel: medium
-- testRoot: 盘姬测试
+- testRoot: /盘姬测试
 
 ## Safety
 
@@ -29,14 +29,12 @@ status: diagnostic
 | --- | --- | --- |
 | detect | pass | BaiduPCS-Go detected |
 | version | pass | BaiduPCS-Go version v4.0.1 |
-| config | pass | BaiduPCS-Go 自身配置目录，未读取浏览器凭据 |
+| config | pass | local CLI config only; browser credentials were not read |
 | help | pass | login, ls, mkdir, upload, mv, transfer, share |
-| whoami | pass | logged_in_redacted |
-| ls | pass | ok |
-| mkdir | pass | ok |
-| upload | pass | ok |
-| rename | pass | ok |
-| mkdir category | pass | ok |
-| mv | pass | ok |
-| share | fail | failed |
-| transfer | blocked_missing_test_share | no env test share and generated share was not parseable |
+| whoami | manual_auth_required | login_required |
+| mkdir | skipped | not_logged_in |
+| upload | skipped | not_logged_in |
+| rename | skipped | not_logged_in |
+| mv | skipped | not_logged_in |
+| transfer | blocked_missing_test_share | not_logged_in |
+| share | skipped | not_logged_in |

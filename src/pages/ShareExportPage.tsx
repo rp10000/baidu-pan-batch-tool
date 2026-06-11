@@ -1,6 +1,7 @@
 import { ClipboardCopy, Download, FileJson, Sheet } from "lucide-react";
 import type { ProcessingTask } from "../domain/types";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
+import { classifyShareFailure } from "../services/ShareFailureClassifier";
 import { openShareLinkForVerification, verifyShareResult } from "../services/ShareVerificationService";
 import { useTaskStore } from "../state/taskStore";
 import { Card, StatCard, StatusDot, Tag } from "../components/ui";
@@ -91,7 +92,7 @@ function ShareTaskTable({
                 <td>{task.shareResult?.source === "mock" ? "演示" : task.shareResult?.extractCode ?? "----"}</td>
                 <td>{task.status === "completed" || task.status === "partial_completed" ? "可导出" : task.status === "failed" ? "失败" : "处理中"}</td>
                 <td>
-                  <button className="text-btn" type="button" onClick={() => onCopy(task)}>
+                  <button className="text-btn" type="button" onClick={() => onCopy(task)} disabled={!task.shareResult || task.shareResult.source === "mock"}>
                     复制
                   </button>
                 </td>
@@ -121,7 +122,7 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
       <div className="form-grid one">
         <label>
           <span>新分享链接</span>
-          <input className="input" value={task?.shareResult?.shareUrl ?? task?.shareError ?? "等待生成"} readOnly />
+          <input className="input" value={task?.shareResult?.shareUrl ?? (task?.shareError ? "未生成分享链接" : "等待生成")} readOnly />
         </label>
         <label>
           <span>提取码</span>
@@ -144,6 +145,9 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
           <input className="input" value={task?.shareResult?.source === "local_cli" ? `真实 CLI / ${verification}` : task?.shareResult?.source === "mock" ? "Mock 演示链接，不可真实访问" : "等待生成"} readOnly />
         </label>
       </div>
+      {task?.shareError && (
+        <p className="notice error">分享失败：{classifyShareFailure(task.shareError).message}。不会导出假链接，请在百度网盘中手动分享输出目录。</p>
+      )}
       <div className="dual-actions">
         <button className="primary-btn full" type="button" onClick={onCopy} disabled={isMock || !task?.shareResult}>
           <ClipboardCopy size={17} />

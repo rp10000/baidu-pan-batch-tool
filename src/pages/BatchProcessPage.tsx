@@ -9,7 +9,6 @@ import { RenameRuleForm } from "../components/batch/RenameRuleForm";
 import { TaskInputPanel } from "../components/batch/TaskInputPanel";
 import { PipelineSteps } from "../components/batch/PipelineSteps";
 import { Card, StatCard, Tag } from "../components/ui";
-import { inputSample } from "../data/prototypeData";
 import type { ProcessingOptions } from "../domain/types";
 import { defaultDeepScanOptions, defaultFastScanOptions, defaultStandardScanOptions } from "../domain/scanOptions";
 import type { ScanMode, ScanOptions } from "../domain/scanOptions";
@@ -17,25 +16,12 @@ import { parseShareLinks } from "../domain/shareParser";
 import { MockProcessingService } from "../services/MockProcessingService";
 import { RealProcessingService } from "../services/RealProcessingService";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
+import { classifyShareFailure } from "../services/ShareFailureClassifier";
 import { openShareLinkForVerification } from "../services/ShareVerificationService";
+import { useBatchDraftStore } from "../state/batchDraftStore";
 import { useStorageMode } from "../state/storageModeStore";
 import { useTaskStore } from "../state/taskStore";
 import type { PageId } from "../types";
-
-const defaultOptions: ProcessingOptions = {
-  autoClassify: true,
-  autoTransfer: true,
-  scanWatermark: false,
-  scanTrafficContent: false,
-  autoRemoveWatermark: false,
-  removeTrafficFields: false,
-  autoCreateShareCode: true,
-  autoRenameFiles: true,
-  renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
-  scanOptions: defaultFastScanOptions(),
-  shareTiming: "share_immediately"
-};
 
 export function BatchProcessPage({
   onNavigate,
@@ -44,11 +30,12 @@ export function BatchProcessPage({
   onNavigate: (page: PageId) => void;
   onToast: (message: string) => void;
 }) {
-  const [input, setInput] = useState(inputSample);
-  const [mode, setMode] = useState<"single" | "batch">("batch");
-  const [options, setOptions] = useState<ProcessingOptions>(defaultOptions);
   const [modalOpen, setModalOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const draft = useBatchDraftStore();
+  const input = draft.rawInput;
+  const mode = draft.selectedMode;
+  const options = draft.options;
   const { activeTask, createTask, updateTask } = useTaskStore();
   const storage = useStorageMode();
   const modeMeta = getAdapterModeMeta(storage.activeMode);
@@ -107,17 +94,9 @@ export function BatchProcessPage({
   }
 
   function toggleOption(key: keyof ProcessingOptions) {
-    setOptions((current) => {
-      const value = current[key];
-      if (typeof value !== "boolean") {
-        return current;
-      }
-
-      return {
-        ...current,
-        [key]: !value
-      };
-    });
+    const value = options[key];
+    if (typeof value !== "boolean") return;
+    draft.setOption(key, !value);
   }
 
   function setScanMode(scanMode: ScanMode) {
@@ -128,37 +107,11 @@ export function BatchProcessPage({
           ? defaultStandardScanOptions()
           : defaultDeepScanOptions();
 
-    setOptions((current) => ({
-      ...current,
-      scanOptions,
-      scanWatermark: scanOptions.checkWatermark,
-      scanTrafficContent: scanOptions.checkContactInfo || scanOptions.checkTrafficWords,
-      autoRemoveWatermark: scanOptions.createCleanCopy,
-      removeTrafficFields: scanOptions.createCleanCopy
-    }));
+    draft.setScanModeOptions(scanOptions);
   }
 
   function toggleScanOption(key: keyof ScanOptions) {
-    setOptions((current) => {
-      const value = current.scanOptions[key];
-      if (typeof value !== "boolean") {
-        return current;
-      }
-      const scanOptions = {
-        ...current.scanOptions,
-        enabled: true,
-        mode: current.scanOptions.mode === "off" ? "standard" : current.scanOptions.mode,
-        [key]: !value
-      };
-      return {
-        ...current,
-        scanOptions,
-        scanWatermark: scanOptions.checkWatermark,
-        scanTrafficContent: scanOptions.checkContactInfo || scanOptions.checkTrafficWords || scanOptions.checkOcrText || scanOptions.checkQrCode,
-        autoRemoveWatermark: scanOptions.createCleanCopy,
-        removeTrafficFields: scanOptions.createCleanCopy
-      };
-    });
+    draft.toggleScanOption(key);
   }
 
   function copyShareInfo() {
@@ -181,8 +134,65 @@ export function BatchProcessPage({
     onToast(status === "opened_in_browser" ? "已打开默认浏览器验证链接" : `链接无法打开：${status}`);
   }
 
+  async function retryCreateShare() {
+    if (!activeTask?.outputDirectory) {
+      onToast("当前任务没有输出目录");
+      return;
+    }
+    setRunning(true);
+    const adapter = storage.getActiveAdapter();
+    const share = await adapter.createShareLink({ remotePaths: [activeTask.outputDirectory], periodDays: 7 });
+    if (share.ok && share.shareUrl) {
+      updateTask({
+        ...activeTask,
+        status: "completed",
+        shareError: undefined,
+        shareResult: {
+          source: share.source ?? "manual",
+          shareUrl: share.shareUrl,
+          extractCode: share.extractCode,
+          expireAt: share.expireAt,
+          verified: Boolean(share.verified),
+          redactedForLog: share.redactedForLog ?? "<redacted-share-url>"
+        },
+        stages: { ...activeTask.stages, create_share: "completed" }
+      });
+      onToast("已重新创建分享链接");
+    } else {
+      const error = share.error ?? "创建分享链接失败";
+      updateTask({
+        ...activeTask,
+        status: activeTask.processedFiles.length > 0 ? "partial_completed" : "failed",
+        shareError: error,
+        shareResult: undefined,
+        stages: { ...activeTask.stages, create_share: "failed" }
+      });
+      onToast(`分享失败：${classifyShareFailure(error).message}`);
+    }
+    setRunning(false);
+  }
+
+  function openOutputDirectory() {
+    const directory = activeTask?.outputDirectory ?? activeTask?.options.targetDirectory;
+    if (!directory) {
+      onToast("当前任务没有输出目录");
+      return;
+    }
+    void navigator.clipboard?.writeText(directory).catch(() => undefined);
+    onToast("已复制输出目录路径，可到百度网盘中手动打开");
+  }
+
+  function showManualShareGuide() {
+    onToast("手动分享：打开输出目录，选中文件或目录，使用百度网盘分享功能创建链接");
+  }
+
+  function showFailureReason() {
+    const failure = classifyShareFailure(activeTask?.shareError);
+    onToast(`${failure.label}：${failure.message}`);
+  }
+
   return (
-    <section className="page">
+    <section className="page batch-page">
       <div className="page-title">
         <div>
           <h2>批量处理</h2>
@@ -204,10 +214,12 @@ export function BatchProcessPage({
         <div className="batch-left">
           <TaskInputPanel
             input={input}
-            onInputChange={setInput}
+            onInputChange={draft.setRawInput}
             mode={mode}
-            onModeChange={setMode}
+            onModeChange={draft.setSelectedMode}
             stats={inputStats}
+            onRestoreSample={draft.restoreSampleInput}
+            onClearInput={draft.clearRawInput}
           />
           <ProcessActionChips
             options={options}
@@ -224,6 +236,10 @@ export function BatchProcessPage({
             onCopy={copyShareInfo}
             onViewDetails={() => onNavigate("workbench")}
             onOpenShare={openShareInfo}
+            onRetryShare={retryCreateShare}
+            onOpenOutput={openOutputDirectory}
+            onManualShareGuide={showManualShareGuide}
+            onViewFailureReason={showFailureReason}
             onExportJson={() => activeTask && exportTaskAsJson(activeTask)}
             onExportCsv={() => activeTask && exportTaskAsCsv(activeTask)}
           />
@@ -238,35 +254,28 @@ export function BatchProcessPage({
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
           </Card>
-          <Card title="接入状态" action={<Tag tone={storage.activeMode === "windows_local_cli" ? "green" : storage.activeMode === "bdpan_wsl" ? "blue" : "orange"}>{modeMeta.badge}</Tag>}>
-            <div className="rename-preview">
+          <Card title="当前处理状态" action={<Tag tone={activeTask?.shareError ? "orange" : storage.activeMode === "windows_local_cli" ? "green" : "blue"}>{modeMeta.badge}</Tag>}>
+            <div className="status-grid">
               <div>
-                <span>当前使用</span>
+                <span>当前模式</span>
                 <b>{modeMeta.label}</b>
               </div>
               <div>
-                <span>状态说明</span>
-                <b>{modeNotice(storage.activeMode, storage.message)}</b>
+                <span>CLI 状态</span>
+                <b>{storage.connectionOk ? "已登录" : "需要重新检测 / 登录"}</b>
               </div>
               <div>
-                <span>Windows 主线</span>
-                <b>{storage.activeMode === "windows_local_cli" ? "本地 CLI 可做自用 MVP；transfer 需用户测试分享链接" : "bdpan WSL 不可用不会阻塞桌面版主流程开发"}</b>
+                <span>分享能力</span>
+                <b>{activeTask?.shareResult ? "可用" : activeTask?.shareError ? "失败" : "未验证"}</b>
               </div>
-              {storage.activeMode === "windows_local_cli" && (
-                <div>
-                  <span>真实处理</span>
-                  <b>通过 Electron main 调用本地 CLI；失败会显示原因</b>
-                </div>
-              )}
-              {storage.activeMode === "windows_local_cli" && (
-                <>
-                  <div><span>文件操作</span><b>已验证：ls / mkdir / upload / rename / mv</b></div>
-                  <div><span>创建分享</span><b>以真实 CLI 返回为准，失败不显示假链接</b></div>
-                  <div><span>分享链接转存</span><b>未验证，缺用户自有测试分享链接</b></div>
-                  <div><span>当前结果来源</span><b>{activeTask?.shareResult?.source === "local_cli" ? "真实 CLI" : activeTask?.shareResult?.source === "mock" ? "Mock 演示" : "等待任务结果"}</b></div>
-                </>
-              )}
+              <div>
+                <span>转存能力</span>
+                <b>未验证，缺测试分享链接</b>
+              </div>
             </div>
+            {activeTask?.shareError && (
+              <p className="notice error">文件已处理完成，但 BaiduPCS-Go 未能创建分享链接。原因：{classifyShareFailure(activeTask.shareError).message}</p>
+            )}
             {storage.activeMode === "windows_local_cli" && (
               <p className="notice">分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。</p>
             )}
@@ -274,8 +283,8 @@ export function BatchProcessPage({
           <RenameRuleForm
             renameRule={options.renameRule}
             targetDirectory={options.targetDirectory}
-            onRenameRuleChange={(renameRule) => setOptions((current) => ({ ...current, renameRule }))}
-            onTargetDirectoryChange={(targetDirectory) => setOptions((current) => ({ ...current, targetDirectory }))}
+            onRenameRuleChange={(renameRule) => draft.setOption("renameRule", renameRule)}
+            onTargetDirectoryChange={(targetDirectory) => draft.setOption("targetDirectory", targetDirectory)}
           />
           <Card title="处理后文件重命名预览" action={<Tag tone="green">可导出</Tag>}>
             <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={options.targetDirectory} />
@@ -316,7 +325,7 @@ function modeNotice(mode: AdapterMode, message: string): string {
 
 function taskToast(task: { status: string; shareError?: string; shareResult?: { extractCode?: string } }): string {
   if (task.status === "failed") return `任务失败：${task.shareError ?? "真实处理失败"}`;
-  if (task.status === "partial_completed") return `处理完成，分享失败：${task.shareError ?? "创建分享链接失败"}`;
+  if (task.status === "partial_completed") return `部分完成：${task.shareError ?? "创建分享链接失败"}`;
   return `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
 }
 
