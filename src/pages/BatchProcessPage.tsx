@@ -1,5 +1,5 @@
 import { Download, Play } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getAdapterModeMeta } from "../adapters/adapterMode";
 import type { AdapterMode } from "../adapters/adapterMode";
 import { TaskResultModal } from "../components/batch/TaskResultModal";
@@ -68,6 +68,12 @@ export function BatchProcessPage({
     [parsedInputs]
   );
 
+  useEffect(() => {
+    if (storage.activeMode === "windows_local_cli" && !storage.cliRuntime && !storage.checking) {
+      void storage.refreshCapabilities();
+    }
+  }, [storage]);
+
   async function startProcess() {
     if (running) {
       return;
@@ -77,7 +83,7 @@ export function BatchProcessPage({
       return;
     }
     if (localCliBlocked) {
-      setBlockedReason(storage.cliRuntime?.message ?? "Windows 本地 CLI 未登录，请先到设置中心启动登录并重新检测。");
+      setBlockedReason(storage.cliRuntime?.message ?? "请先连接百度网盘。打开设置中心后，按教程导入 BDUSS 和 STOKEN。");
       return;
     }
 
@@ -220,13 +226,20 @@ export function BatchProcessPage({
             <Download size={17} />
             导入 TXT / CSV
           </button>
-          <button className="primary-btn" type="button" onClick={startProcess} disabled={running || localCliBlocked} title={localCliBlocked ? "请先到设置中心登录 BaiduPCS-Go" : undefined}>
+          <button className="primary-btn" type="button" onClick={startProcess} disabled={running || localCliBlocked} title={localCliBlocked ? "请先到设置中心连接百度网盘" : undefined}>
             <Play size={17} />
-            {localCliBlocked ? "请先登录 CLI" : running ? "处理中" : primaryActionLabel}
+            {localCliBlocked ? "请先连接百度网盘" : running ? "处理中" : primaryActionLabel}
           </button>
         </div>
       </div>
-      {blockedReason && <p className="notice error batch-blocked-notice">{blockedReason}</p>}
+      {(blockedReason || localCliBlocked) && (
+        <div className="notice error batch-blocked-notice">
+          <b>{blockedReason || storage.cliRuntime?.message || "请先连接百度网盘"}</b>
+          <button className="secondary-btn" type="button" onClick={() => onNavigate("settings")}>
+            去设置中心连接
+          </button>
+        </div>
+      )}
 
       <div className="batch-grid">
         <div className="batch-left">
@@ -298,7 +311,7 @@ export function BatchProcessPage({
               <p className={`notice ${storage.connectionOk ? "" : "error"}`}>
                 {storage.connectionOk
                   ? "分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。"
-                  : "BaiduPCS-Go 未登录，真实转存和创建分享已禁用。请先到设置中心启动登录并重新检测。"}
+                  : "请先连接百度网盘。到设置中心打开百度网盘登录页，按教程导入 BDUSS 和 STOKEN 后再重新检测。"}
               </p>
             )}
           </Card>

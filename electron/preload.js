@@ -4,8 +4,11 @@ contextBridge.exposeInMainWorld("panjieDesktop", {
   getVersion: () => ipcRenderer.invoke("app:get-version"),
   localCliRun: (command) => ipcRenderer.invoke("local-cli:run", command),
   inspectLocalCli: () => ipcRenderer.invoke("local-cli:inspect"),
-  startLocalCliLogin: () => ipcRenderer.invoke("local-cli:start-login"),
   getLocalCliCommandLog: () => ipcRenderer.invoke("local-cli:get-command-log"),
+  openBaiduLoginPage: () => ipcRenderer.invoke("auth:open-login-page"),
+  probeBaiduLoginMethod: () => ipcRenderer.invoke("auth:probe-login-method"),
+  importBaiduSession: (payload) => ipcRenderer.invoke("auth:import-session", payload),
+  clearBaiduSession: () => ipcRenderer.invoke("auth:clear-session"),
   checkDependencies: () => ipcRenderer.invoke("system:check-dependencies"),
   installScanRuntime: () => ipcRenderer.invoke("scan-runtime:install"),
   clearCache: () => ipcRenderer.invoke("cache:clear")

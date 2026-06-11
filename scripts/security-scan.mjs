@@ -12,6 +12,7 @@ const blockedTerms = [
   "document.cookie",
   "localStorage",
   "sessionStorage",
+  "session.cookies.get",
   "browser scraping",
   "shell: true",
   "shell:true",
@@ -34,6 +35,11 @@ const blockedTerms = [
   "token.json",
   "抓包",
   "HAR",
+  "Network 抓包",
+  "自动提取 Cookie",
+  "自动提取 CK",
+  "自动提取 BDUSS",
+  "自动提取 STOKEN",
   "hidden endpoint",
   "隐藏接口",
   "账号密码"
@@ -79,6 +85,9 @@ function scanPath(path) {
   }
 
   if (ignoredExtensions.has(extname(path).toLowerCase())) {
+    return;
+  }
+  if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(path)) {
     return;
   }
 

@@ -58,18 +58,6 @@ export function ProcessActionChips({
           <span>会下载文件样本并运行 OCR/抽帧，耗时明显增加。</span>
         </button>
       </div>
-      <div className="chip-list">
-        {actionItems.map((action) => (
-          <button
-            className={`chip action-chip ${options[action.key] ? "checked" : ""}`}
-            key={action.key}
-            type="button"
-            onClick={() => onToggle(action.key)}
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
       <div className="scan-option-grid">
         {scanItems.map((item) => {
           const checked = Boolean(options.scanOptions[item.key]);
@@ -85,6 +73,18 @@ export function ProcessActionChips({
             </button>
           );
         })}
+      </div>
+      <div className="chip-list">
+        {actionItems.map((action) => (
+          <button
+            className={`chip action-chip ${options[action.key] ? "checked" : ""}`}
+            key={action.key}
+            type="button"
+            onClick={() => onToggle(action.key)}
+          >
+            {action.label}
+          </button>
+        ))}
       </div>
       <p className="notice">
         未勾选扫描时不会下载文件样本、不会初始化 OCR、不会视频抽帧；清理只生成副本，不覆盖原文件。

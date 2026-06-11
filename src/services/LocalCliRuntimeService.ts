@@ -18,6 +18,10 @@ export interface LocalCliRuntimeSnapshot {
   loginState: LocalCliLoginState;
   account: LocalCliAccountInfo;
   rootListOk: boolean;
+  quotaOk?: boolean;
+  loginMethod?: "none" | "bduss_stoken" | "cookie" | "existing";
+  lastImportedAt?: string;
+  lastCheckedAt?: string;
   message: string;
 }
 

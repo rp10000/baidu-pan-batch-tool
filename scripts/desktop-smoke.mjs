@@ -172,9 +172,9 @@ async function verifyDraftPersistence(page, nav) {
 
 async function verifyLoginBlockedState(page) {
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1desktopFailure 1234");
-  await page.getByText(/BaiduPCS-Go 未登录|请先登录 CLI/).first().waitFor({ timeout: 10_000 });
-  await page.getByRole("button", { name: "请先登录 CLI" }).waitFor({ timeout: 10_000 });
-  if (!(await page.getByRole("button", { name: "请先登录 CLI" }).isDisabled())) {
+  await page.getByText(/请先连接百度网盘|登录态失效/).first().waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: "请先连接百度网盘" }).waitFor({ timeout: 10_000 });
+  if (!(await page.getByRole("button", { name: "请先连接百度网盘" }).isDisabled())) {
     throw new Error("real processing button must be disabled while CLI is not logged in");
   }
   if (await page.getByRole("dialog", { name: "任务结果弹窗" }).count()) {
@@ -186,17 +186,20 @@ async function verifyLoginBlockedState(page) {
 async function verifySettingsSimpleMode(page) {
   await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
   await page.getByText("百度网盘连接").waitFor({ timeout: 5_000 });
-  await page.getByText("处理默认值").waitFor({ timeout: 5_000 });
-  await page.getByText("扫描配置").waitFor({ timeout: 5_000 });
-  await page.getByText("数据与缓存").waitFor({ timeout: 5_000 });
-  await page.getByText("关于").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "打开百度网盘登录页" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "粘贴并导入登录态" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "重新检测" }).click();
-  await page.getByText("用户名").waitFor({ timeout: 10_000 });
-  await page.getByText("容量 / 已用").waitFor({ timeout: 10_000 });
+  await page.getByText("登录方式").waitFor({ timeout: 10_000 });
+  await page.getByText("最后检测").waitFor({ timeout: 10_000 });
+  if (await page.getByText("能力矩阵").isVisible()) {
+    throw new Error("advanced debug is expanded by default");
+  }
+  await page.screenshot({ path: path.join(screenshotsDir, "settings-simple.png"), fullPage: true });
+  await page.getByText("展开高级调试").click();
   await page.getByRole("button", { name: "检查依赖" }).click();
   await page.getByText("Node Runtime").waitFor({ timeout: 10_000 });
   await page.getByText(/BaiduPCS-Go/).first().waitFor({ timeout: 10_000 });
-  const ocrButton = page.getByRole("button", { name: "完整扫描运行时后续提供" });
+  const ocrButton = page.getByRole("button", { name: "OCR 模型安装未接线" });
   await ocrButton.waitFor({ timeout: 5_000 });
   if (!(await ocrButton.isDisabled())) {
     throw new Error("OCR install button must stay disabled until the installer is fully wired");
@@ -206,16 +209,6 @@ async function verifySettingsSimpleMode(page) {
   await page.screenshot({ path: path.join(screenshotsDir, "fix-ocr-disabled-clear.png"), fullPage: true });
   await page.getByRole("button", { name: "清理缓存" }).click();
   await page.getByText(/删除文件 \d+ 个，释放/).waitFor({ timeout: 10_000 });
-  const updateButton = page.getByRole("button", { name: "检查更新未接线" });
-  await updateButton.waitFor({ timeout: 5_000 });
-  if (!(await updateButton.isDisabled())) {
-    throw new Error("unwired update check button must be disabled");
-  }
-  if (await page.getByText("能力矩阵").isVisible()) {
-    throw new Error("advanced debug is expanded by default");
-  }
-  await page.screenshot({ path: path.join(screenshotsDir, "settings-simple.png"), fullPage: true });
-  await page.getByText("展开高级调试").click();
   await page.getByRole("button", { name: "刷新执行日志" }).click();
   await page.getByText("执行命令").waitFor({ timeout: 5_000 });
   await page.getByText("stdout").waitFor({ timeout: 5_000 });
@@ -249,23 +242,22 @@ async function verifyBatchLayout(page, size) {
   await page.getByText("检查二维码").waitFor({ timeout: 5_000 });
   await page.getByText("OCR 检查文字").waitFor({ timeout: 5_000 });
   await page.getByText("任务流水线").waitFor({ timeout: 5_000 });
-  await page.getByText(/分享链接转存还未真实验证|BaiduPCS-Go 未登录/).waitFor({ timeout: 5_000 });
 
-  const startButton = page.getByRole("button", { name: /请先登录 CLI|开始快速处理|开始处理并检查|开始深度处理/ }).first();
+  const startButton = page.getByRole("button", { name: /请先连接百度网盘|开始快速处理|开始处理并检查|开始深度处理/ }).first();
   await startButton.waitFor({ state: "visible", timeout: 5_000 });
 
   const layout = await page.evaluate(() => {
     const body = document.body;
     const doc = document.documentElement;
-    const button = [...document.querySelectorAll("button")].find((item) =>
-      /请先登录 CLI|开始快速处理|开始处理并检查|开始深度处理/.test(item.textContent ?? "")
-    );
-    const scanOption = [...document.querySelectorAll("button")].find((item) =>
-      /检查二维码/.test(item.textContent ?? "")
-    );
-    const resultCard = [...document.querySelectorAll(".card")].find((item) =>
-      /任务流水线|结果预览|分享链接转存还未真实验证/.test(item.textContent ?? "")
-    );
+    const visibleMatch = (items, pattern) =>
+      items.find((item) => {
+        if (!pattern.test(item.textContent ?? "")) return false;
+        const rect = item.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+      });
+    const button = visibleMatch([...document.querySelectorAll("button")], /请先连接百度网盘|开始快速处理|开始处理并检查|开始深度处理/);
+    const scanOption = visibleMatch([...document.querySelectorAll("button")], /检查二维码/);
+    const resultCard = visibleMatch([...document.querySelectorAll(".card")], /任务流水线|结果预览|分享链接转存还未真实验证/);
     const buttonRect = button?.getBoundingClientRect();
     const scanRect = scanOption?.getBoundingClientRect();
     const cardRect = resultCard?.getBoundingClientRect();

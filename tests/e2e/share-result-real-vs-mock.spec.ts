@@ -18,11 +18,11 @@ test("windows local cli failure shows reason instead of fake share link", async 
   const nav = page.locator('nav[aria-label="主导航"]');
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await expect(page.locator("body")).toContainText("当前模式");
-  await expect(page.locator("body")).toContainText("BaiduPCS-Go 未登录");
+  await expect(page.locator("body")).toContainText("请先连接百度网盘");
   await page.screenshot({ path: "artifacts/screenshots/fixed-batch-transfer-status.png", fullPage: true });
 
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1needsrealcli 1234");
-  await expect(page.getByRole("button", { name: "请先登录 CLI" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "请先连接百度网盘" })).toBeDisabled();
   await expect(page.getByRole("dialog", { name: "任务结果弹窗" })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/fixed-share-result-real-or-failed.png", fullPage: true });
 

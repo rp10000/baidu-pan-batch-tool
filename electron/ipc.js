@@ -1,10 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, ipcMain, session, shell } from "electron";
 import { log } from "./diagnostics.js";
 
-const allowedLocalCliCommands = new Set(["--version", "help", "who", "login", "quota", "ls", "mkdir", "cd", "upload", "mv", "transfer", "share"]);
+const allowedLocalCliCommands = new Set(["--version", "help", "who", "quota", "ls", "mkdir", "cd", "upload", "mv", "transfer", "share"]);
 const commandHistory = [];
 
 export function registerIpc() {
@@ -16,11 +16,14 @@ export function registerIpc() {
 
   ipcMain.handle("local-cli:run", async (_event, command) => runLocalCli(command));
   ipcMain.handle("local-cli:inspect", () => inspectLocalCliRuntime());
-  ipcMain.handle("local-cli:start-login", () => startLocalCliLogin());
   ipcMain.handle("local-cli:get-command-log", () => ({
     cliPath: resolveBaiduPcsGoPath() ?? "",
     entries: commandHistory.slice(-30)
   }));
+  ipcMain.handle("auth:open-login-page", () => openBaiduLoginPage());
+  ipcMain.handle("auth:probe-login-method", () => probeBaiduLoginMethod());
+  ipcMain.handle("auth:import-session", (_event, payload) => importBaiduSession(payload));
+  ipcMain.handle("auth:clear-session", () => clearBaiduSession());
   ipcMain.handle("system:check-dependencies", () => checkDependencies());
   ipcMain.handle("scan-runtime:install", () => installScanRuntime());
   ipcMain.handle("cache:clear", () => clearAppCache());
@@ -45,8 +48,21 @@ export function registerIpc() {
   ipcMain.handle("window:is-maximized", (event) => Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized()));
 }
 
+async function openBaiduLoginPage() {
+  try {
+    await shell.openExternal("https://pan.baidu.com/");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "failed to open Baidu Netdisk login page" };
+  }
+}
+
 function draftPath() {
   return path.join(app.getPath("userData"), "draft.local.json");
+}
+
+function authMetaPath() {
+  return path.join(app.getPath("userData"), "auth-meta.local.json");
 }
 
 function readDraft() {
@@ -70,54 +86,32 @@ function writeDraft(draft) {
   }
 }
 
-function startLocalCliLogin() {
-  const cli = resolveBaiduPcsGo();
-  if (!cli.path) {
-    return { ok: false, error: "内置 CLI 缺失，请重新安装客户端或运行 prepare:embedded-cli" };
-  }
-
-  log("local-cli-login-window", { command: "login" });
+function readAuthMeta() {
   try {
-    const startedAt = new Date().toISOString();
-    const loginScriptPath = writeLoginScript(cli.path);
-    const args = buildLoginStartArgs(loginScriptPath);
-    const result = spawnSync("powershell.exe", args, {
-      encoding: "utf8",
-      timeout: 10000,
-      windowsHide: false
-    });
-    const finishedAt = new Date().toISOString();
-    const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
-    const exitCode = result.error?.message.includes("ETIMEDOUT") ? 124 : result.status ?? (result.error ? 127 : 0);
-    if (exitCode !== 0) {
-      const message = result.stderr || result.stdout || result.error?.message || "failed to open local cli login window";
-      recordCommandLog({
-        commandText: `powershell.exe ${args.map(quoteArg).join(" ")}`,
-        args: ["login"],
-        exitCode,
-        stdout: result.stdout || "",
-        stderr: message,
-        startedAt,
-        finishedAt,
-        durationMs
-      });
-      return { ok: false, error: message };
-    }
-    recordCommandLog({
-      commandText: `powershell.exe ${args.map(quoteArg).join(" ")}`,
-      args: ["login"],
-      exitCode: 0,
-      stdout: "visible login terminal opened",
-      stderr: "",
-      startedAt,
-      finishedAt,
-      durationMs
-    });
-    return { ok: true, message: "visible login terminal opened", scriptPath: loginScriptPath };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "failed to open local cli login window";
-    recordCommandLog({ args: ["login"], exitCode: 127, stdout: "", stderr: message });
-    return { ok: false, error: message };
+    const filePath = authMetaPath();
+    if (!fs.existsSync(filePath)) return {};
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeAuthMeta(meta) {
+  try {
+    const filePath = authMetaPath();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(meta, null, 2), "utf8");
+  } catch {
+    // Non-sensitive metadata is optional; CLI verification remains authoritative.
+  }
+}
+
+function clearAuthMeta() {
+  try {
+    const filePath = authMetaPath();
+    if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
+  } catch {
+    // Best effort cleanup only.
   }
 }
 
@@ -143,6 +137,138 @@ async function inspectLocalCliRuntime() {
   recordCommandLog({ args: ["quota"], ...quota });
   recordCommandLog({ args: ["ls", "/"], ...rootList });
   return buildRuntimeSnapshot({ bridgeOnline: true, cliPath: cli.path, cliSource: cli.source, version, who, quota, rootList });
+}
+
+async function probeBaiduLoginMethod() {
+  const cli = resolveBaiduPcsGo();
+  if (!cli.path) {
+    return {
+      ok: false,
+      cliPath: "",
+      supports: { bduss: false, stoken: false, cookies: false },
+      error: "BaiduPCS-Go executable not found"
+    };
+  }
+  const result = await spawnLocalCli(cli.path, ["login", "--help"], 10000);
+  recordCommandLog({ args: ["login", "--help"], ...result });
+  const helpText = `${result.stdout}\n${result.stderr}`;
+  return {
+    ok: result.exitCode === 0,
+    cliPath: cli.path,
+    supports: parseLoginHelp(helpText),
+    exitCode: result.exitCode,
+    stdout: trimLog(redactForLog(result.stdout)),
+    stderr: trimLog(redactForLog(result.stderr)),
+    error: result.exitCode === 0 ? undefined : firstLine(helpText) || "login help failed"
+  };
+}
+
+async function importBaiduSession(payload) {
+  const cli = resolveBaiduPcsGo();
+  if (!cli.path) {
+    return { ok: false, error: "内置 BaiduPCS-Go 缺失", runtime: await inspectLocalCliRuntime() };
+  }
+
+  const mode = payload?.mode === "cookie" ? "cookie" : "bduss_stoken";
+  const probe = await probeBaiduLoginMethod();
+  if (!probe.ok) {
+    return { ok: false, error: probe.error ?? "无法确认 BaiduPCS-Go 登录参数", runtime: await inspectLocalCliRuntime(), probe };
+  }
+
+  const plan = buildSessionImportArgs(payload, probe.supports, mode);
+  if (!plan.ok) {
+    return { ok: false, error: plan.error, runtime: await inspectLocalCliRuntime(), probe };
+  }
+
+  const result = await spawnLocalCli(cli.path, plan.args, 60000);
+  recordCommandLog({
+    commandText: `BaiduPCS-Go ${redactAuthArgs(plan.args).join(" ")}`,
+    args: redactAuthArgs(plan.args),
+    ...result
+  });
+
+  const output = `${result.stdout}\n${result.stderr}`.trim();
+  if (result.exitCode !== 0) {
+    return {
+      ok: false,
+      error: firstLine(redactForLog(output)) || "BaiduPCS-Go 登录态导入失败",
+      exitCode: result.exitCode,
+      stdout: trimLog(redactForLog(result.stdout)),
+      stderr: trimLog(redactForLog(result.stderr)),
+      runtime: await inspectLocalCliRuntime(),
+      probe
+    };
+  }
+
+  writeAuthMeta({
+    loginMethod: mode,
+    lastImportedAt: new Date().toISOString()
+  });
+  const runtime = await inspectLocalCliRuntime();
+  if (runtime.loginState !== "logged_in") {
+    return {
+      ok: false,
+      error: `导入后仍未登录：${runtime.message}`,
+      exitCode: result.exitCode,
+      stdout: trimLog(redactForLog(result.stdout)),
+      stderr: trimLog(redactForLog(result.stderr)),
+      runtime,
+      probe
+    };
+  }
+
+  return {
+    ok: true,
+    loginMethod: mode,
+    exitCode: result.exitCode,
+    stdout: trimLog(redactForLog(result.stdout)),
+    stderr: trimLog(redactForLog(result.stderr)),
+    runtime,
+    probe
+  };
+}
+
+async function clearBaiduSession() {
+  const cli = resolveBaiduPcsGo();
+  clearAuthMeta();
+  if (!cli.path) {
+    return { ok: false, error: "BaiduPCS-Go executable not found", runtime: await inspectLocalCliRuntime() };
+  }
+  const result = await spawnLocalCli(cli.path, ["logout"], 20000);
+  recordCommandLog({ args: ["logout"], ...result });
+  return {
+    ok: result.exitCode === 0,
+    exitCode: result.exitCode,
+    stdout: trimLog(redactForLog(result.stdout)),
+    stderr: trimLog(redactForLog(result.stderr)),
+    error: result.exitCode === 0 ? undefined : firstLine(redactForLog(`${result.stdout}\n${result.stderr}`)),
+    runtime: await inspectLocalCliRuntime()
+  };
+}
+
+function buildSessionImportArgs(payload, supports, mode) {
+  if (mode === "cookie") {
+    const cookie = String(payload?.cookie ?? "").trim();
+    if (!cookie) return { ok: false, error: "缺少完整 Cookie" };
+    if (!supports.cookies) return { ok: false, error: "当前 BaiduPCS-Go 不支持完整 Cookie 导入" };
+    return { ok: true, args: ["login", "--cookies", cookie] };
+  }
+
+  const bduss = String(payload?.bduss ?? "").trim();
+  const stoken = String(payload?.stoken ?? "").trim();
+  if (!bduss) return { ok: false, error: "缺少 BDUSS" };
+  if (!stoken) return { ok: false, error: "缺少 STOKEN" };
+  if (!supports.bduss || !supports.stoken) return { ok: false, error: "当前 BaiduPCS-Go 不支持 BDUSS+STOKEN 导入" };
+  return { ok: true, args: ["login", "--bduss", bduss, "--stoken", stoken] };
+}
+
+function parseLoginHelp(value) {
+  const text = String(value ?? "").toLowerCase();
+  return {
+    bduss: /(?:--|-)?bduss\b/.test(text),
+    stoken: /(?:--|-)?stoken\b/.test(text),
+    cookies: /(?:--|-)?cookies?\b/.test(text)
+  };
 }
 
 function runLocalCli(command) {
@@ -237,39 +363,6 @@ function spawnCommand(executablePath, args, timeoutMs) {
       resolve({ exitCode: exitCode ?? 1, stdout, stderr, startedAt, finishedAt, durationMs: diffMs(startedAt, finishedAt) });
     });
   });
-}
-
-function writeLoginScript(cliPath) {
-  const runtimeDir = path.join(app.getPath("userData"), "runtime");
-  fs.mkdirSync(runtimeDir, { recursive: true });
-  const scriptPath = path.join(runtimeDir, "baidupcs-login.cmd");
-  const cliDir = path.dirname(cliPath);
-  const script = [
-    "@echo off",
-    "chcp 65001 >nul",
-    "title BaiduPCS-Go 登录",
-    "echo 正在启动 BaiduPCS-Go 登录...",
-    "echo.",
-    `cd /d "${escapeCmdFile(cliDir)}"`,
-    `"${escapeCmdFile(cliPath)}" login`,
-    "echo.",
-    "echo 登录流程结束。请回到盘姬批量助手点击“重新检测”。",
-    "pause",
-    ""
-  ].join("\r\n");
-  fs.writeFileSync(scriptPath, script, "utf8");
-  return scriptPath;
-}
-
-function buildLoginStartArgs(loginScriptPath) {
-  const escapedScriptPath = escapePowerShellSingleQuoted(loginScriptPath);
-  return [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-Command",
-    `Start-Process -FilePath 'cmd.exe' -ArgumentList @('/k', '${escapedScriptPath}') -WindowStyle Normal`
-  ];
 }
 
 async function checkDependencies() {
@@ -541,6 +634,19 @@ function recordCommandLog(entry) {
   while (commandHistory.length > 50) commandHistory.shift();
 }
 
+function redactAuthArgs(args) {
+  return args.map((arg, index) => {
+    const previous = args[index - 1] ?? "";
+    if (/^--?(?:bduss|stoken|cookies)$/i.test(previous)) {
+      return previous.toLowerCase().includes("cookies") ? "<redacted-cookie>" : "<redacted>";
+    }
+    if (/^--?(?:bduss|stoken|cookies)=/i.test(arg)) {
+      return arg.replace(/=.*/, "=<redacted>");
+    }
+    return arg;
+  });
+}
+
 function quoteArg(value) {
   return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
@@ -566,6 +672,7 @@ function buildRuntimeSnapshot(input) {
   const cliInstalled = Boolean(input.cliPath) || input.version?.exitCode === 0;
   const rootListOk = input.rootList?.exitCode === 0 && !containsLoginFailure(rootText);
   const loginState = determineLoginState({ cliInstalled, account, quota: input.quota, text: `${whoText}\n${quotaText}` });
+  const authMeta = readAuthMeta();
   return {
     bridgeOnline: Boolean(input.bridgeOnline),
     cliInstalled,
@@ -575,6 +682,10 @@ function buildRuntimeSnapshot(input) {
     loginState,
     account,
     rootListOk,
+    quotaOk: input.quota?.exitCode === 0 && !containsLoginFailure(quotaText),
+    loginMethod: loginState === "logged_in" ? authMeta.loginMethod ?? "existing" : "none",
+    lastImportedAt: authMeta.lastImportedAt,
+    lastCheckedAt: new Date().toISOString(),
     message: runtimeMessage(loginState, cliInstalled, Boolean(input.bridgeOnline), `${whoText}\n${quotaText}\n${rootText}`)
   };
 }
@@ -681,17 +792,12 @@ function redactForLog(value) {
   return String(value ?? "")
     .replace(/https?:\/\/pan\.baidu\.com\/s\/[^\s)'"<>，。；;]+/gi, "<redacted-share-url>")
     .replace(/(?:提取码|提取密码|pwd|code)\s*[:：=]?\s*[A-Za-z0-9]{4,}/gi, "extractCode: <redacted>")
-    .replace(/(?:BDUSS|STOKEN|PTOKEN|BAIDUID|authorization)\s*[:：=]\s*[^\s;]+/gi, "<redacted-auth-field>");
+    .replace(/(?:BDUSS|STOKEN|PTOKEN|BAIDUID|authorization)\s*[:：=]\s*[^\s;]+/gi, "<redacted-auth-field>")
+    .replace(/(--?(?:bduss|stoken)\s+)[^\s]+/gi, "$1<redacted>")
+    .replace(/(--?cookies\s+)[^\r\n]+/gi, "$1<redacted-cookie>")
+    .replace(/((?:cookie)\s*[:：=]\s*)[^\r\n]+/gi, "$1<redacted-cookie>");
 }
 
 function diffMs(startedAt, finishedAt) {
   return Math.max(0, new Date(finishedAt).getTime() - new Date(startedAt).getTime());
-}
-
-function escapeCmdFile(value) {
-  return String(value).replace(/"/g, '""');
-}
-
-function escapePowerShellSingleQuoted(value) {
-  return String(value).replace(/'/g, "''");
 }
