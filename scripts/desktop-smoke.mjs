@@ -235,11 +235,33 @@ async function verifySettingsSimpleMode(page) {
   await page.getByText("扫描配置").waitFor({ timeout: 5_000 });
   await page.getByText("数据与缓存").waitFor({ timeout: 5_000 });
   await page.getByText("关于").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "重新检测" }).click();
+  await page.getByText("用户名").waitFor({ timeout: 10_000 });
+  await page.getByText("容量 / 已用").waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: "检查依赖" }).click();
+  await page.getByText("Node Runtime").waitFor({ timeout: 10_000 });
+  await page.getByText("BaiduPCS-Go", { exact: true }).first().waitFor({ timeout: 10_000 });
+  await page.getByRole("button", { name: "清理缓存" }).click();
+  await page.getByText(/删除文件 \d+ 个，释放/).waitFor({ timeout: 10_000 });
+  const disconnectedButtons = page.getByRole("button", { name: "功能未接线" });
+  if ((await disconnectedButtons.count()) < 2) {
+    throw new Error("settings page should show unimplemented buttons as disabled 功能未接线");
+  }
+  for (let index = 0; index < await disconnectedButtons.count(); index += 1) {
+    if (!(await disconnectedButtons.nth(index).isDisabled())) {
+      throw new Error("功能未接线 button is not disabled");
+    }
+  }
   if (await page.getByText("能力矩阵").isVisible()) {
     throw new Error("advanced debug is expanded by default");
   }
   await page.screenshot({ path: path.join(screenshotsDir, "settings-simple.png"), fullPage: true });
   await page.getByText("展开高级调试").click();
+  await page.getByRole("button", { name: "刷新执行日志" }).click();
+  await page.getByText("执行命令").waitFor({ timeout: 5_000 });
+  await page.getByText("stdout").waitFor({ timeout: 5_000 });
+  await page.getByText("stderr").waitFor({ timeout: 5_000 });
+  await page.getByText("exitCode").waitFor({ timeout: 5_000 });
   await page.getByText("能力矩阵").waitFor({ timeout: 5_000 });
   await page.screenshot({ path: path.join(screenshotsDir, "settings-advanced-expanded.png"), fullPage: true });
 }

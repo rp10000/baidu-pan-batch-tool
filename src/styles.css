@@ -54,6 +54,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .app-shell {
   width: 100vw;
   height: 100vh;
@@ -1411,6 +1416,33 @@ tbody tr {
 
 .advanced-grid {
   margin-top: 14px;
+}
+
+.dependency-list,
+.developer-log {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.developer-log label {
+  display: grid;
+  gap: 6px;
+  color: var(--soft);
+  font-size: 12px;
+}
+
+.log-block {
+  max-height: 180px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid rgba(132, 165, 255, 0.18);
+  border-radius: 12px;
+  color: #dce8ff;
+  background: rgba(2, 9, 20, 0.72);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .inline-toggle {
