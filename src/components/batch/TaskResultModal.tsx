@@ -25,6 +25,8 @@ export function TaskResultModal({
   onExportCsv: () => void;
 }) {
   if (!open || !task) return null;
+  const title = resultTitle(task);
+  const tone = task.status === "failed" ? "failed" : task.status === "partial_completed" ? "partial" : "success";
 
   return (
     <div className="modal-card result-modal" role="dialog" aria-label="任务完成弹窗">
@@ -32,8 +34,8 @@ export function TaskResultModal({
         <X size={18} />
       </button>
       <div className="modal-title">
-        <span className="success-mark">✓</span>
-        任务完成
+        <span className={`success-mark ${tone}`}>{task.status === "failed" ? "!" : "✓"}</span>
+        {title}
       </div>
       <PipelineSteps task={task} />
       <ResultSummaryCards task={task} />
@@ -76,4 +78,11 @@ export function TaskResultModal({
       </div>
     </div>
   );
+}
+
+function resultTitle(task: ProcessingTask): string {
+  if (task.shareResult?.source === "mock") return "Mock 演示完成";
+  if (task.status === "partial_completed") return "处理完成，分享失败";
+  if (task.status === "failed") return "任务失败";
+  return "任务完成";
 }

@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { app, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { log } from "./diagnostics.js";
 
-const allowedLocalCliCommands = new Set(["--version", "help", "who", "login", "ls", "mkdir", "upload", "mv", "transfer", "share"]);
+const allowedLocalCliCommands = new Set(["--version", "help", "who", "login", "ls", "mkdir", "cd", "upload", "mv", "transfer", "share"]);
 
 export function registerIpc() {
   ipcMain.handle("app:get-version", () => ({
@@ -13,6 +13,23 @@ export function registerIpc() {
   }));
 
   ipcMain.handle("local-cli:run", async (_event, command) => runLocalCli(command));
+  ipcMain.handle("window:minimize", (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
+  });
+  ipcMain.handle("window:toggle-maximize", (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return false;
+    if (window.isMaximized()) {
+      window.unmaximize();
+      return false;
+    }
+    window.maximize();
+    return true;
+  });
+  ipcMain.handle("window:close", (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+  ipcMain.handle("window:is-maximized", (event) => Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized()));
 }
 
 function runLocalCli(command) {

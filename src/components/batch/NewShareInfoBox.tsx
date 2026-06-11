@@ -24,7 +24,7 @@ export function NewShareInfoBox({
         <strong>{shareResult?.shareUrl ?? shareError ?? "等待生成"}</strong>
         <span>
           {shareError
-            ? "转存和分类已完成，可手动分享或开通开放平台分享能力。"
+            ? "操作建议：1. 检查 CLI 远程路径是否为绝对路径；2. 重新运行分享；3. 手动在百度网盘中分享输出目录。"
             : isMock
               ? "Mock 演示链接，不可真实访问。"
               : `提取码：${shareResult?.extractCode ?? "----"} · 验证：${verification}`}

@@ -29,7 +29,11 @@ const valid = validateShare(parsed);
 console.log(`share: ${valid ? "pass" : "fail"}`);
 console.log(`link_format: ${valid ? "valid" : "invalid"}`);
 console.log(`extract_code: ${parsed.extractCode ? "present" : "missing"}`);
-console.log(`message: ${valid ? "generated_redacted" : classifyError(`${share.stdout}\n${share.stderr}`)}`);
+const message = valid ? "generated_redacted" : classifyError(`${share.stdout}\n${share.stderr}`);
+console.log(`message: ${message}`);
+if (message === "cli_path_not_absolute") {
+  process.exit(1);
+}
 
 function run(args) {
   const result = spawnSync(cliPath, args, {
@@ -66,6 +70,7 @@ function validateShare(parsed) {
 
 function classifyError(output) {
   const text = String(output || "");
+  if (/not absolute path/i.test(text)) return "cli_path_not_absolute";
   if (/失败|错误|error|failed/i.test(text)) return "cli_share_failed_redacted";
   if (!/https?:\/\/pan\.baidu\.com\/s\//i.test(text)) return "no_share_url_returned";
   return "unknown";

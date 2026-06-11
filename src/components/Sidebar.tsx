@@ -43,9 +43,9 @@ export function Sidebar({
 
       <div className="sidebar-foot">
         <span className="status-dot" />
-        本地 mock 原型运行中
+        Windows 本地 CLI 主线
         <br />
-        仅模拟授权与处理流程
+        真实失败不伪造成功
       </div>
     </aside>
   );

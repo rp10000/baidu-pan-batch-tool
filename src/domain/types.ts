@@ -10,6 +10,7 @@ export type TaskStatus =
   | "transferring"
   | "sharing"
   | "completed"
+  | "partial_completed"
   | "failed";
 
 export type PipelineStage =

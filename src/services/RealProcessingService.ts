@@ -142,13 +142,23 @@ export class RealProcessingService implements ProcessingService {
     } catch (error) {
       const runningStage = Object.entries(task.stages).find(([, status]) => status === "running")?.[0] as keyof ProcessingTask["stages"] | undefined;
       if (runningStage) task.stages[runningStage] = "failed";
-      task.status = "failed";
       task.shareError = error instanceof Error ? error.message : "真实处理失败";
+      task.status = shouldMarkPartialShareFailure(task) ? "partial_completed" : "failed";
     }
     task.summary = summarizeRealTask(task);
     emit(task, onUpdate);
     return cloneTask(task);
   }
+}
+
+function shouldMarkPartialShareFailure(task: ProcessingTask): boolean {
+  if (!task.shareError || task.processedFiles.length === 0) {
+    return false;
+  }
+  if (task.shareError.includes("路径错误") || task.shareError.includes("not absolute path")) {
+    return false;
+  }
+  return task.stages.create_share === "failed";
 }
 
 function createRealDraftTask(rawText: string, options: ProcessingOptions, adapterMode: ProcessingTask["adapterMode"]): ProcessingTask {

@@ -66,6 +66,9 @@ export function normalizeCliError(value: string): string {
   if (lower.includes("manual") && lower.includes("cookie")) {
     return "当前 CLI 需要手动凭据模式";
   }
+  if (lower.includes("not absolute path")) {
+    return "路径错误：CLI 需要绝对网盘路径";
+  }
   if (lower.includes("login") || text.includes("未登录")) {
     return "Windows 本地 CLI 未登录";
   }

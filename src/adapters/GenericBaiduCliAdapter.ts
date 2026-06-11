@@ -2,6 +2,7 @@ import type { LocalCliAdapter, LocalCliCapabilities, LocalCliDetection, LocalCli
 import type { RemoteFile, StorageCapabilities } from "./StorageAdapter";
 import type { LocalCliCommandRunner } from "../services/LocalCliCommandRunner";
 import { normalizeCliError, redactCliOutput } from "../services/LocalCliCommandRunner";
+import { assertCliAbsolutePath, toCliAbsolutePath, toDisplayPath } from "../services/RemotePathService";
 import { verifyShareResult } from "../services/ShareVerificationService";
 
 interface GenericBaiduCliProfile {
@@ -16,6 +17,7 @@ interface GenericBaiduCliProfile {
     who: string[];
     ls: (dir: string) => string[];
     mkdir: (dir: string) => string[];
+    cd: (dir: string) => string[];
     upload: (localPath: string, remotePath: string) => string[];
     move: (remotePath: string, targetPath: string) => string[];
     transfer: (url: string, extractCode?: string) => string[];
@@ -106,29 +108,49 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
     if (this.profile.capabilities.transferSharedLink !== "supported") {
       return { ok: false, error: "当前 CLI 不支持分享链接转存" };
     }
-    const result = await this.runner.run({ args: this.profile.commands.transfer(input.url, input.extractCode), timeoutMs: 120000 });
-    return result.exitCode === 0
-      ? { ok: true, remotePath: input.targetDirectory, raw: redactCliOutput(result.stdout) }
-      : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+    const targetDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.targetDirectory));
+    const mkdir = await this.runner.run({ args: this.profile.commands.mkdir(targetDirectory), timeoutMs: 30000 });
+    if (mkdir.exitCode !== 0) {
+      return { ok: false, error: normalizeCliError(mkdir.stderr || mkdir.stdout) };
+    }
+
+    const cd = await this.runner.run({ args: this.profile.commands.cd(targetDirectory), timeoutMs: 30000 });
+    if (cd.exitCode !== 0) {
+      return { ok: false, error: normalizeCliError(cd.stderr || cd.stdout) };
+    }
+
+    try {
+      const result = await this.runner.run({ args: this.profile.commands.transfer(input.url, input.extractCode), timeoutMs: 120000 });
+      return result.exitCode === 0
+        ? { ok: true, remotePath: toDisplayPath(targetDirectory), raw: redactCliOutput(result.stdout) }
+        : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+    } finally {
+      await this.runner.run({ args: this.profile.commands.cd("/"), timeoutMs: 30000 });
+    }
   }
 
   async listFiles(input: { remoteDirectory: string }): Promise<RemoteFile[]> {
-    const result = await this.runner.run({ args: this.profile.commands.ls(input.remoteDirectory), timeoutMs: 30000 });
+    const remoteDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.remoteDirectory));
+    const result = await this.runner.run({ args: this.profile.commands.ls(remoteDirectory), timeoutMs: 30000 });
     if (result.exitCode !== 0) return [];
-    return parsePlainFileList(result.stdout, input.remoteDirectory);
+    return parsePlainFileList(result.stdout, toDisplayPath(remoteDirectory));
   }
 
   async mkdir(input: { remoteDirectory: string }): Promise<{ ok: boolean; error?: string }> {
-    return this.okResult(await this.runner.run({ args: this.profile.commands.mkdir(input.remoteDirectory), timeoutMs: 30000 }));
+    const remoteDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.remoteDirectory));
+    return this.okResult(await this.runner.run({ args: this.profile.commands.mkdir(remoteDirectory), timeoutMs: 30000 }));
   }
 
   async renameFile(input: { remotePath: string; newName: string }): Promise<{ ok: boolean; error?: string }> {
-    const targetPath = `${dirname(input.remotePath)}/${input.newName}`.replace(/\/+/g, "/");
-    return this.moveFile({ remotePath: input.remotePath, targetDirectory: targetPath });
+    const remotePath = assertCliAbsolutePath(toCliAbsolutePath(input.remotePath));
+    const targetPath = assertCliAbsolutePath(`${dirname(remotePath)}/${input.newName}`.replace(/\/+/g, "/"));
+    return this.moveFile({ remotePath, targetDirectory: targetPath });
   }
 
   async moveFile(input: { remotePath: string; targetDirectory: string }): Promise<{ ok: boolean; error?: string }> {
-    return this.okResult(await this.runner.run({ args: this.profile.commands.move(input.remotePath, input.targetDirectory), timeoutMs: 30000 }));
+    const remotePath = assertCliAbsolutePath(toCliAbsolutePath(input.remotePath));
+    const targetDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.targetDirectory));
+    return this.okResult(await this.runner.run({ args: this.profile.commands.move(remotePath, targetDirectory), timeoutMs: 30000 }));
   }
 
   async downloadFile(): Promise<{ ok: boolean; error?: string }> {
@@ -136,14 +158,16 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
   }
 
   async uploadFile(input: { localPath: string; remotePath: string }): Promise<{ ok: boolean; error?: string }> {
-    return this.okResult(await this.runner.run({ args: this.profile.commands.upload(input.localPath, input.remotePath), timeoutMs: 120000 }));
+    const remotePath = assertCliAbsolutePath(toCliAbsolutePath(input.remotePath));
+    return this.okResult(await this.runner.run({ args: this.profile.commands.upload(input.localPath, remotePath), timeoutMs: 120000 }));
   }
 
   async createShareLink(input: { remotePaths: string[]; periodDays: 0 | 1 | 7 | 30 }) {
     if (this.profile.capabilities.createShareLink !== "supported") {
       return { ok: false, error: "当前 CLI 不支持创建分享链接" };
     }
-    const result = await this.runner.run({ args: this.profile.commands.share(input.remotePaths, input.periodDays), timeoutMs: 60000 });
+    const remotePaths = input.remotePaths.map((remotePath) => assertCliAbsolutePath(toCliAbsolutePath(remotePath)));
+    const result = await this.runner.run({ args: this.profile.commands.share(remotePaths, input.periodDays), timeoutMs: 60000 });
     if (result.exitCode !== 0) {
       return { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
     }

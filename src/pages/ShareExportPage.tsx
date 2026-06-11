@@ -89,7 +89,7 @@ function ShareTaskTable({
                 </td>
                 <td>永久有效</td>
                 <td>{task.shareResult?.source === "mock" ? "演示" : task.shareResult?.extractCode ?? "----"}</td>
-                <td>{task.status === "completed" ? "可导出" : "处理中"}</td>
+                <td>{task.status === "completed" || task.status === "partial_completed" ? "可导出" : task.status === "failed" ? "失败" : "处理中"}</td>
                 <td>
                   <button className="text-btn" type="button" onClick={() => onCopy(task)}>
                     复制

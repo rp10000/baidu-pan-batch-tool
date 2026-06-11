@@ -32,7 +32,7 @@ const defaultOptions: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "盘姬测试/output/{taskId}/{分类}",
+  targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
   scanOptions: defaultFastScanOptions(),
   shareTiming: "share_immediately"
 };
@@ -98,7 +98,7 @@ export function BatchProcessPage({
       });
       updateTask(task);
       setModalOpen(true);
-      onToast(task.shareError ? `任务完成：${task.shareError}` : `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`);
+      onToast(taskToast(task));
     } catch (error) {
       onToast(error instanceof Error ? error.message : "真实处理失败");
     } finally {
@@ -233,7 +233,7 @@ export function BatchProcessPage({
             <StatCard icon={inputStats.duplicate} label="重复链接" value={inputStats.duplicate} tone="orange" />
             <StatCard icon={inputStats.invalid} label="无效链接" value={inputStats.invalid} tone="pink" />
           </div>
-          <Card title="任务流水线" action={<Tag tone={activeTask?.status === "completed" ? "green" : "orange"}>{activeTask?.status ?? "draft"}</Tag>}>
+          <Card title="任务流水线" action={<Tag tone={activeTask?.status === "completed" ? "green" : activeTask?.status === "failed" ? "red" : "orange"}>{taskStatusLabel(activeTask?.status)}</Tag>}>
             <PipelineSteps task={activeTask} />
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
@@ -312,4 +312,18 @@ function modeNotice(mode: AdapterMode, message: string): string {
     return `bdpan WSL 高级模式：${message}`;
   }
   return message;
+}
+
+function taskToast(task: { status: string; shareError?: string; shareResult?: { extractCode?: string } }): string {
+  if (task.status === "failed") return `任务失败：${task.shareError ?? "真实处理失败"}`;
+  if (task.status === "partial_completed") return `处理完成，分享失败：${task.shareError ?? "创建分享链接失败"}`;
+  return `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
+}
+
+function taskStatusLabel(status?: string): string {
+  if (!status) return "draft";
+  if (status === "partial_completed") return "部分完成";
+  if (status === "completed") return "已完成";
+  if (status === "failed") return "失败";
+  return status;
 }

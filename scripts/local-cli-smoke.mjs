@@ -276,6 +276,7 @@ function writeReport(report) {
 
 function classifyCliError(value) {
   const lower = value.toLowerCase();
+  if (lower.includes("not absolute path")) return "cli_path_not_absolute";
   if (lower.includes("unsupported")) return "unsupported";
   if (lower.includes("login") || value.includes("未登录")) return "not_logged_in";
   if (lower.includes("timeout")) return "timeout";

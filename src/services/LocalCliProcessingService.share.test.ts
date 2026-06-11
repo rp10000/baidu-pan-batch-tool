@@ -14,7 +14,7 @@ const options: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "盘姬测试/output/{taskId}/{分类}",
+  targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
   scanOptions: defaultFastScanOptions(),
   shareTiming: "share_immediately"
 };
@@ -54,13 +54,22 @@ describe("LocalCliProcessingService share result", () => {
     expect(task.shareResult?.shareUrl).not.toContain("redacted");
   });
 
-  it("returns a failed task without fake share result when share creation fails", async () => {
+  it("returns a partial task without fake share result when share creation fails after file operations", async () => {
     const task = await new LocalCliProcessingService(makeAdapter({ ok: false, error: "创建分享链接失败：CLI 未返回可用分享链接" }), { delayMs: 0 })
+      .createAndRunTask("https://pan.baidu.com/s/1input 1234", options);
+
+    expect(task.status).toBe("partial_completed");
+    expect(task.shareResult).toBeUndefined();
+    expect(task.shareError).toContain("创建分享链接失败");
+  });
+
+  it("keeps path errors as failed tasks", async () => {
+    const task = await new LocalCliProcessingService(makeAdapter({ ok: false, error: "路径错误：CLI 需要绝对网盘路径" }), { delayMs: 0 })
       .createAndRunTask("https://pan.baidu.com/s/1input 1234", options);
 
     expect(task.status).toBe("failed");
     expect(task.shareResult).toBeUndefined();
-    expect(task.shareError).toContain("创建分享链接失败");
+    expect(task.shareError).toContain("绝对网盘路径");
   });
 });
 

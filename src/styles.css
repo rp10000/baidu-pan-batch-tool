@@ -33,8 +33,8 @@ html,
 body,
 #root {
   width: 100%;
+  height: 100%;
   min-width: 320px;
-  min-height: 100vh;
   margin: 0;
 }
 
@@ -58,7 +58,7 @@ button {
   width: 100vw;
   height: 100vh;
   display: grid;
-  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   color: var(--text);
   background:
     radial-gradient(circle at 4% 4%, rgba(255, 192, 67, 0.26), transparent 18%),
@@ -68,13 +68,98 @@ button {
   overflow: hidden;
 }
 
+.app-titlebar {
+  height: 44px;
+  display: grid;
+  grid-template-columns: minmax(240px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid rgba(255, 63, 145, 0.28);
+  color: var(--soft);
+  background: linear-gradient(90deg, rgba(5, 12, 27, 0.98), rgba(17, 13, 36, 0.98));
+  -webkit-app-region: drag;
+}
+
+.titlebar-brand,
+.titlebar-status,
+.window-controls {
+  display: flex;
+  align-items: center;
+}
+
+.titlebar-brand {
+  gap: 10px;
+  min-width: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.titlebar-brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(255, 192, 67, 0.42), 0 0 14px rgba(255, 63, 145, 0.32);
+}
+
+.titlebar-status {
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.titlebar-status span,
+.titlebar-status b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-status b {
+  color: #ffd184;
+}
+
+.window-controls {
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #dbe7ff;
+  background: transparent;
+}
+
+.window-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.window-controls .close:hover {
+  background: rgba(255, 77, 106, 0.9);
+}
+
+.app-body {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .sidebar {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 30px 20px 20px;
+  min-height: 0;
+  padding: 22px 18px 18px;
   border-right: 1px solid rgba(132, 165, 255, 0.18);
   background: linear-gradient(180deg, rgba(5, 16, 34, 0.9), rgba(7, 14, 30, 0.98));
   box-shadow: 18px 0 48px rgba(0, 0, 0, 0.25);
@@ -200,17 +285,19 @@ button {
 
 .content-shell {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
 .topbar {
-  min-height: 82px;
+  min-height: 70px;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 28px 12px;
+  padding: 14px 24px 10px;
 }
 
 .search-box,
@@ -242,7 +329,7 @@ button {
 .page-stage {
   flex: 1;
   min-height: 0;
-  padding: 0 28px 24px;
+  padding: 0 24px 20px;
   overflow: auto;
 }
 
@@ -385,6 +472,12 @@ button {
   background: rgba(53, 220, 120, 0.12);
 }
 
+.tag.red {
+  color: #ffb7c2;
+  border-color: rgba(255, 93, 114, 0.34);
+  background: rgba(255, 93, 114, 0.12);
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -468,7 +561,7 @@ button {
 
 .batch-grid {
   display: grid;
-  grid-template-columns: minmax(380px, 0.86fr) minmax(0, 1.14fr);
+  grid-template-columns: minmax(420px, 0.9fr) minmax(520px, 1.1fr);
   gap: 18px;
   align-items: start;
 }
@@ -554,7 +647,8 @@ button {
 }
 
 .link-textarea {
-  min-height: 170px;
+  min-height: 166px;
+  max-height: 260px;
 }
 
 .drop-zone {
@@ -888,7 +982,7 @@ tbody tr {
 }
 
 .processing-mode-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 14px;
 }
 
@@ -1124,6 +1218,18 @@ tbody tr {
   vertical-align: middle;
 }
 
+.success-mark.partial {
+  color: #241600;
+  background: var(--orange);
+  box-shadow: 0 0 26px rgba(255, 192, 67, 0.32);
+}
+
+.success-mark.failed {
+  color: #fff;
+  background: var(--red);
+  box-shadow: 0 0 26px rgba(255, 93, 114, 0.32);
+}
+
 .modal-actions {
   display: flex;
   align-items: center;
@@ -1283,9 +1389,100 @@ tbody tr {
   color: var(--muted);
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1440px) {
   :root {
     --sidebar: 250px;
+  }
+
+  .topbar {
+    min-height: 62px;
+    gap: 10px;
+    padding: 10px 18px 8px;
+  }
+
+  .search-box {
+    width: min(340px, 30vw);
+  }
+
+  .sync-pill {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-stage {
+    padding: 0 18px 18px;
+  }
+
+  .page-title {
+    margin: 0 0 12px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .card-head {
+    margin-bottom: 10px;
+  }
+
+  .batch-grid {
+    grid-template-columns: minmax(400px, 0.92fr) minmax(500px, 1.08fr);
+    gap: 14px;
+  }
+
+  .link-textarea {
+    min-height: 132px;
+    max-height: 180px;
+  }
+
+  .drop-zone {
+    display: none;
+  }
+
+  .input-stats {
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .input-stats span {
+    min-height: 42px;
+    padding: 7px 8px;
+  }
+
+  .ghost-fill {
+    min-height: 34px;
+    margin-top: 10px;
+  }
+
+  .processing-mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 10px;
+  }
+
+  .processing-mode-grid .mode-card {
+    min-height: 58px;
+    padding: 9px 10px;
+  }
+
+  .processing-mode-grid .mode-card span {
+    display: none;
+  }
+
+  .scan-option-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .scan-option {
+    min-height: 34px;
+    padding: 7px 9px;
+  }
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --sidebar: 220px;
   }
 
   .kpi-grid {
@@ -1306,14 +1503,171 @@ tbody tr {
   }
 }
 
+@media (max-height: 800px) {
+  :root {
+    --sidebar: 220px;
+  }
+
+  .sidebar {
+    gap: 12px;
+    padding: 14px 14px 12px;
+  }
+
+  .avatar-wrap {
+    width: 74px;
+    height: 74px;
+    margin-bottom: 8px;
+  }
+
+  .brand h1 {
+    font-size: 18px;
+  }
+
+  .brand p,
+  .nav-btn small,
+  .sidebar-foot {
+    display: none;
+  }
+
+  .nav {
+    gap: 6px;
+  }
+
+  .nav-btn {
+    min-height: 42px;
+    padding: 7px 10px;
+  }
+
+  .topbar {
+    min-height: 54px;
+    padding: 8px 16px 6px;
+  }
+
+  .search-box,
+  .sync-pill {
+    min-height: 36px;
+    border-radius: 11px;
+  }
+
+  .page-title {
+    margin: 0 0 10px;
+  }
+
+  .page-title h2 {
+    font-size: 23px;
+  }
+
+  .page-title p {
+    font-size: 12px;
+  }
+
+  .card {
+    padding: 13px;
+    border-radius: 16px;
+  }
+
+  .card-head {
+    margin-bottom: 10px;
+  }
+
+  .batch-grid {
+    grid-template-columns: minmax(380px, 0.9fr) minmax(500px, 1.1fr);
+    gap: 12px;
+  }
+
+  .batch-left,
+  .batch-right {
+    gap: 10px;
+  }
+
+  .link-textarea {
+    min-height: 104px;
+    max-height: 132px;
+  }
+
+  .drop-zone,
+  .compact-kpis {
+    display: none;
+  }
+
+  .processing-mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 10px;
+  }
+
+  .processing-mode-grid .mode-card {
+    min-height: 42px;
+    padding: 8px 10px;
+  }
+
+  .processing-mode-grid .mode-card span,
+  .chip-list + .scan-option-grid + .notice {
+    display: none;
+  }
+
+  .chip-list {
+    gap: 6px;
+  }
+
+  .chip {
+    min-height: 28px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .scan-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .scan-option {
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .scan-option em {
+    min-width: 28px;
+    font-size: 11px;
+  }
+
+  .result-modal {
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+  }
+
+  .table-scroll {
+    max-height: 210px;
+  }
+}
+
 @media (max-width: 860px) {
   body {
     overflow: auto;
   }
 
+  .app-titlebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .titlebar-status {
+    display: none;
+  }
+
+  .window-controls button {
+    width: 38px;
+  }
+
   .app-shell {
     min-height: 100vh;
     height: auto;
+    grid-template-rows: 44px auto;
+    overflow: visible;
+  }
+
+  .app-body {
     grid-template-columns: 1fr;
     overflow: visible;
   }

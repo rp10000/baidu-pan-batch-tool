@@ -10,9 +10,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function createMainWindow() {
   const window = new BrowserWindow({
     width: 1440,
-    height: 940,
-    minWidth: 1120,
-    minHeight: 720,
+    height: 900,
+    minWidth: 1280,
+    minHeight: 760,
+    frame: false,
+    autoHideMenuBar: true,
     backgroundColor: "#071225",
     title: "盘姬批量助手",
     webPreferences: {

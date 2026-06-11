@@ -86,6 +86,8 @@ async function verifyUi(page) {
 
   await page.waitForLoadState("domcontentloaded");
   await page.getByText("盘姬批量助手").waitFor({ timeout: 10_000 });
+  await verifyCustomChrome(page);
+
   const nav = page.locator('nav[aria-label="主导航"]');
   await nav.getByRole("button", { name: /批量处理/ }).waitFor({ timeout: 5_000 });
   await nav.getByRole("button", { name: /设置中心/ }).waitFor({ timeout: 5_000 });
@@ -100,15 +102,32 @@ async function verifyUi(page) {
   if (bodyText.length < 100) {
     throw new Error(`body appears blank, text length ${bodyText.length}`);
   }
+  if (/File\s+Edit\s+View\s+Window/i.test(bodyText)) {
+    throw new Error("default Electron menu text is visible");
+  }
 
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-home.png"), fullPage: true });
   assertNotBlankScreenshot(path.join(screenshotsDir, "fixed-desktop-home.png"));
 
   await nav.getByRole("button", { name: /批量处理/ }).click();
-  await page.getByText("快速转存模式").waitFor({ timeout: 5_000 });
-  await page.getByText("检查二维码").waitFor({ timeout: 5_000 });
-  await page.getByText("OCR 检查文字").waitFor({ timeout: 5_000 });
+  await verifyBatchLayout(page, { width: 1440, height: 900 });
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-batch.png"), fullPage: true });
+  await page.screenshot({ path: path.join(screenshotsDir, "share-path-fixed-or-error.png"), fullPage: true });
+
+  for (const size of [
+    { width: 1366, height: 768 },
+    { width: 1440, height: 900 },
+    { width: 1920, height: 1080 }
+  ]) {
+    await page.setViewportSize(size);
+    await wait(250);
+    await verifyBatchLayout(page, size);
+    const screenshotPath = path.join(screenshotsDir, `layout-${size.width}x${size.height}-batch.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: false });
+    assertNotBlankScreenshot(screenshotPath);
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   await nav.getByRole("button", { name: /设置中心/ }).click();
   await page.getByRole("heading", { name: "Windows 本地 CLI 模式" }).waitFor({ timeout: 5_000 });
@@ -118,6 +137,103 @@ async function verifyUi(page) {
   if (consoleErrors.length > 0) {
     throw new Error(`renderer console errors: ${consoleErrors.join(" | ")}`);
   }
+}
+
+async function verifyCustomChrome(page) {
+  const titlebar = page.locator('[data-testid="custom-titlebar"]');
+  await titlebar.waitFor({ timeout: 5_000 });
+  await page.getByText("盘姬 · 批量助手").waitFor({ timeout: 5_000 });
+  await page.getByLabel("最小化窗口").waitFor({ timeout: 5_000 });
+  await page.getByLabel("最大化或还原窗口").waitFor({ timeout: 5_000 });
+  await page.getByLabel("关闭窗口").waitFor({ timeout: 5_000 });
+
+  const screenshotPath = path.join(screenshotsDir, "custom-titlebar.png");
+  await titlebar.screenshot({ path: screenshotPath });
+  assertNotBlankScreenshot(screenshotPath);
+}
+
+async function verifyBatchLayout(page, size) {
+  await page.getByRole("heading", { name: "批量处理" }).waitFor({ timeout: 5_000 });
+  await page.getByText("快速转存模式").waitFor({ timeout: 5_000 });
+  await page.getByText("检查二维码").waitFor({ timeout: 5_000 });
+  await page.getByText("OCR 检查文字").waitFor({ timeout: 5_000 });
+  await page.getByText("任务流水线").waitFor({ timeout: 5_000 });
+  await page.getByText("分享链接转存还未真实验证").waitFor({ timeout: 5_000 });
+
+  const startButton = page.getByRole("button", { name: /开始快速处理|开始处理并检查|开始深度处理/ }).first();
+  await startButton.waitFor({ state: "visible", timeout: 5_000 });
+
+  const layout = await page.evaluate(() => {
+    const body = document.body;
+    const doc = document.documentElement;
+    const button = [...document.querySelectorAll("button")].find((item) =>
+      /开始快速处理|开始处理并检查|开始深度处理/.test(item.textContent ?? "")
+    );
+    const scanOption = [...document.querySelectorAll("button")].find((item) =>
+      /检查二维码/.test(item.textContent ?? "")
+    );
+    const resultCard = [...document.querySelectorAll(".card")].find((item) =>
+      /任务流水线|结果预览|分享链接转存还未真实验证/.test(item.textContent ?? "")
+    );
+    const buttonRect = button?.getBoundingClientRect();
+    const scanRect = scanOption?.getBoundingClientRect();
+    const cardRect = resultCard?.getBoundingClientRect();
+    return {
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollWidth: Math.max(body.scrollWidth, doc.scrollWidth),
+      bodyScrollHeight: Math.max(body.scrollHeight, doc.scrollHeight),
+      buttonRect: buttonRect
+        ? {
+            left: buttonRect.left,
+            right: buttonRect.right,
+            top: buttonRect.top,
+            bottom: buttonRect.bottom
+          }
+        : null,
+      scanRect: scanRect
+        ? {
+            left: scanRect.left,
+            right: scanRect.right,
+            top: scanRect.top,
+            bottom: scanRect.bottom
+          }
+        : null,
+      cardRect: cardRect
+        ? {
+            left: cardRect.left,
+            right: cardRect.right,
+            top: cardRect.top,
+            bottom: cardRect.bottom
+          }
+        : null
+    };
+  });
+
+  if (layout.scrollWidth > layout.viewportWidth + 2) {
+    throw new Error(
+      `batch page has horizontal overflow at ${size.width}x${size.height}: ${layout.scrollWidth} > ${layout.viewportWidth}`
+    );
+  }
+  if (layout.bodyScrollHeight > layout.viewportHeight + 120) {
+    throw new Error(
+      `body scroll height is too large at ${size.width}x${size.height}: ${layout.bodyScrollHeight} > ${layout.viewportHeight}`
+    );
+  }
+  if (!isRectVisible(layout.buttonRect, layout.viewportWidth, layout.viewportHeight)) {
+    throw new Error(`batch primary action is not visible at ${size.width}x${size.height}`);
+  }
+  if (!isRectVisible(layout.scanRect, layout.viewportWidth, layout.viewportHeight)) {
+    throw new Error(`batch on-demand scan options are not visible at ${size.width}x${size.height}`);
+  }
+  if (!isRectVisible(layout.cardRect, layout.viewportWidth, layout.viewportHeight)) {
+    throw new Error(`batch result card is not visible at ${size.width}x${size.height}`);
+  }
+}
+
+function isRectVisible(rect, viewportWidth, viewportHeight) {
+  if (!rect) return false;
+  return rect.right > 0 && rect.left < viewportWidth && rect.bottom > 0 && rect.top < viewportHeight;
 }
 
 async function firstCdpPage(browser) {
@@ -153,6 +269,9 @@ async function assertRuntimeLogClean() {
   }
   if (/render-process-gone.*crashed/i.test(log)) {
     throw new Error(`runtime log contains renderer crash: ${logPath}`);
+  }
+  if (/not absolute path/i.test(log)) {
+    throw new Error(`runtime log still contains BaiduPCS-Go absolute path failure: ${logPath}`);
   }
 }
 

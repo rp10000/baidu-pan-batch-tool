@@ -89,7 +89,7 @@ export interface StorageAdapter {
   }>;
 }
 
-export const PANJIE_ROOT = "panjie";
+export const PANJIE_ROOT = "盘姬测试/panjie";
 
 export const DEFAULT_STORAGE_CAPABILITIES: StorageCapabilities = {
   checkLogin: "needs_official_verification",

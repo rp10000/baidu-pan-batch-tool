@@ -8,7 +8,7 @@ import { Card, StatCard, StatusDot, Tag } from "../components/ui";
 export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const { tasks, activeTask, selectTask } = useTaskStore();
   const storage = useStorageMode();
-  const completedTasks = tasks.filter((task) => task.status === "completed");
+  const completedTasks = tasks.filter((task) => task.status === "completed" || task.status === "partial_completed");
   const riskCount = tasks.reduce((sum, task) => sum + task.processedFiles.flatMap((file) => file.risks).length, 0);
   const transferredCount = tasks.reduce((sum, task) => sum + task.summary.transferredFiles, 0);
   const shareCount = tasks.filter((task) => task.shareResult).length;
@@ -58,7 +58,7 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
                     </td>
                     <td>
                       <StatusDot tone={task.status === "completed" ? "green" : task.status === "failed" ? "red" : "orange"} />
-                      {task.status === "completed" ? "已完成" : task.status === "failed" ? "失败" : "处理中"}
+                      {task.status === "completed" ? "已完成" : task.status === "partial_completed" ? "部分完成" : task.status === "failed" ? "失败" : "处理中"}
                     </td>
                   </tr>
                 ))}
@@ -130,6 +130,9 @@ function currentStageLabel(task: ReturnType<typeof useTaskStore>["tasks"][number
   }
   if (task.status === "completed") {
     return "生成分享码";
+  }
+  if (task.status === "partial_completed") {
+    return "分享失败";
   }
   return "等待处理";
 }

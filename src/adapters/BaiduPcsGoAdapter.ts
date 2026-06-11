@@ -25,6 +25,7 @@ const baiduPcsGoProfile: GenericBaiduCliProfile = {
     who: ["who"],
     ls: (dir) => ["ls", dir],
     mkdir: (dir) => ["mkdir", dir],
+    cd: (dir) => ["cd", dir],
     upload: (localPath, remotePath) => ["upload", localPath, remotePath],
     move: (remotePath, targetPath) => ["mv", remotePath, targetPath],
     transfer: (url, extractCode) => ["transfer", url, extractCode ?? ""].filter(Boolean),

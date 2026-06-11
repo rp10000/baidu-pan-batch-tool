@@ -26,7 +26,7 @@ const options: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: true,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "panjie/output/{taskId}/{分类}",
+  targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
   scanOptions: defaultFastScanOptions(),
   shareTiming: "share_immediately"
 };
@@ -82,13 +82,13 @@ describe("RealProcessingService", () => {
       options
     );
 
-    expect(calls.some((call) => call.startsWith("transfer:panjie/raw/task-"))).toBe(true);
-    expect(calls.some((call) => call.startsWith("ls:panjie/raw/task-"))).toBe(true);
-    expect(calls.some((call) => call.startsWith("mkdir:panjie/output/task-"))).toBe(true);
+    expect(calls.some((call) => call.startsWith("transfer:盘姬测试/panjie/raw/task-"))).toBe(true);
+    expect(calls.some((call) => call.startsWith("ls:盘姬测试/panjie/raw/task-"))).toBe(true);
+    expect(calls.some((call) => call.startsWith("mkdir:盘姬测试/panjie/output/task-"))).toBe(true);
     expect(calls.some((call) => call.startsWith("rename:"))).toBe(true);
     expect(calls.some((call) => call.startsWith("mv:"))).toBe(true);
     expect(calls).toContain("share");
-    expect(task.status).toBe("failed");
+    expect(task.status).toBe("partial_completed");
     expect(task.processedFiles).toHaveLength(2);
     expect(task.summary.transferredFiles).toBe(2);
     expect(task.shareResult).toBeUndefined();
