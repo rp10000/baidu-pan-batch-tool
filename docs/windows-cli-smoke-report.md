@@ -1,6 +1,6 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-10T23:44:31.656Z
+generatedAt: 2026-06-11T02:14:20.613Z
 status: diagnostic
 
 ## CLI
@@ -38,5 +38,5 @@ status: diagnostic
 | rename | pass | ok |
 | mkdir category | pass | ok |
 | mv | pass | ok |
-| share | pass | generated_redacted |
+| share | fail | failed |
 | transfer | blocked_missing_test_share | no env test share and generated share was not parseable |

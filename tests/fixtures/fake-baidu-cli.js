@@ -42,6 +42,12 @@ if (command === "share" && scenario === "unsupported_share") {
   process.exit(3);
 }
 
+if (command === "share") {
+  console.log("分享链接: https://pan.baidu.com/s/1fake-cli-share?pwd=9abc");
+  console.log("提取码: 9abc");
+  process.exit(0);
+}
+
 if (["ls", "mkdir", "upload", "mv", "transfer", "share", "quota"].includes(command)) {
   console.log("ok");
   process.exit(0);

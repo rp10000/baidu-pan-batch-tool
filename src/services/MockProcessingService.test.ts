@@ -58,7 +58,9 @@ describe("MockProcessingService", () => {
     expect(task.summary.renamedFiles).toBe(5);
     expect(task.summary.transferredFiles).toBeGreaterThan(0);
     expect(task.shareResult).toMatchObject({
-      newShareUrl: expect.stringContaining("https://pan.baidu.com/s/mock-"),
+      source: "mock",
+      shareUrl: expect.stringContaining("https://pan.baidu.com/s/mock-"),
+      verified: false,
       extractCode: expect.stringMatching(/^[A-Z0-9]{4}$/)
     });
     expect(task.processedFiles.flatMap((file) => file.risks).every((risk) => risk.action === "cleaned")).toBe(true);

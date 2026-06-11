@@ -32,8 +32,8 @@ export function exportTaskAsCsv(task: ProcessingTask): void {
     file.risks.map((risk) => risk.label).join(" / "),
     file.risks.map((risk) => risk.action).join(" / "),
     file.status,
-    task.shareResult?.newShareUrl ?? "",
-    task.shareResult?.extractCode ?? ""
+    task.shareResult?.source === "mock" ? "" : task.shareResult?.shareUrl ?? "",
+    task.shareResult?.source === "mock" ? "" : task.shareResult?.extractCode ?? ""
   ]);
   const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
   downloadTextFile(`${task.id}.csv`, `\ufeff${csv}`, "text/csv;charset=utf-8");
@@ -54,7 +54,7 @@ function toExportPayload(task: ProcessingTask) {
       })),
       status: file.status
     })),
-    shareResult: task.shareResult
+    shareResult: task.shareResult?.source === "mock" ? undefined : task.shareResult
   };
 }
 

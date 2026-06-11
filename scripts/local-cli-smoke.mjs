@@ -151,14 +151,16 @@ function where(command) {
 }
 
 function runShareCheck(cliPath, remotePath) {
-  const result = runCli(cliPath, ["share", remotePath], 120000);
+  const result = runCli(cliPath, ["share", "set", "--period", "7", "-f", remotePath], 120000);
+  const share = result.exitCode === 0 ? extractShareData(result.rawStdout || result.rawStderr) : undefined;
+  const failedOutput = /失败|错误|error|failed/i.test(result.rawStdout || result.rawStderr);
   return {
     check: {
       name: "share",
-      status: result.exitCode === 0 ? "pass" : "fail",
-      message: result.exitCode === 0 ? "generated_redacted" : classifyCliError(result.stderr || result.stdout)
+      status: result.exitCode === 0 && share?.url && !failedOutput ? "pass" : "fail",
+      message: result.exitCode === 0 && share?.url && !failedOutput ? "generated_redacted" : classifyCliError(result.stderr || result.stdout)
     },
-    share: result.exitCode === 0 ? extractShareData(result.rawStdout || result.rawStderr) : undefined
+    share: result.exitCode === 0 && !failedOutput ? share : undefined
   };
 }
 

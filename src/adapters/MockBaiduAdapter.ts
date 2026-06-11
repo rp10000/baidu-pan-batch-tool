@@ -57,12 +57,23 @@ export class MockBaiduAdapter implements StorageAdapter {
   async createShareLink(input: {
     remotePaths: string[];
     periodDays: 0 | 1 | 7 | 30;
-  }): Promise<{ ok: boolean; shareUrl?: string; extractCode?: string; periodDays?: number }> {
+  }): Promise<{
+    ok: boolean;
+    source?: "mock";
+    shareUrl?: string;
+    extractCode?: string;
+    verified?: boolean;
+    redactedForLog?: string;
+    periodDays?: number;
+  }> {
     const idPart = input.remotePaths.join("-").replaceAll("/", "-").slice(0, 8) || "empty";
     return {
       ok: true,
+      source: "mock",
       shareUrl: `https://pan.baidu.com/s/mock-${idPart}`,
       extractCode: "A7K9",
+      verified: false,
+      redactedForLog: "<mock-share-url>",
       periodDays: input.periodDays
     };
   }

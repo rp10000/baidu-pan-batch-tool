@@ -140,8 +140,11 @@ function applyStage(task: ProcessingTask, stage: (typeof PIPELINE_ORDER)[number]
     case "create_share":
       if (task.options.autoCreateShareCode) {
         task.shareResult = {
-          newShareUrl: `https://pan.baidu.com/s/mock-${task.id.slice(-6)}`,
-          extractCode: "A7K9"
+          source: "mock",
+          shareUrl: `https://pan.baidu.com/s/mock-${task.id.slice(-6)}`,
+          extractCode: "A7K9",
+          verified: false,
+          redactedForLog: "<mock-share-url>"
         };
       }
       return;

@@ -4,9 +4,7 @@ import { extname, join } from "node:path";
 
 const sourceTargets = ["src", "electron", "public", "index.html", "package.json"];
 const reportTargets = [
-  "docs/bdpan-smoke-report.md",
-  "docs/oauth-preflight-report.md",
-  "docs/windows-cli-smoke-report.md",
+  ...collectTextFiles("docs"),
   "artifacts/electron-runtime.log"
 ];
 const ignoredExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg"]);
@@ -15,7 +13,6 @@ const blockedTerms = [
   "localStorage",
   "sessionStorage",
   "browser scraping",
-  "child_process",
   "shell: true",
   "shell:true",
   "exec(",
@@ -101,6 +98,23 @@ function scanPath(path) {
   if (/\.env\.local(?!\.example)/.test(content)) {
     findings.push(`${path}: .env.local`);
   }
+  if (path.startsWith(`src${sep()}`) && content.includes("child_process")) {
+    findings.push(`${path}: child_process`);
+  }
+  if (path.startsWith(`src${sep()}`) && content.includes("generated_redacted")) {
+    findings.push(`${path}: generated_redacted must not enter renderer state`);
+  }
+}
+
+function collectTextFiles(path) {
+  if (!existsSync(path)) {
+    return [];
+  }
+  const stat = statSync(path);
+  if (stat.isDirectory()) {
+    return readdirSync(path).flatMap((child) => collectTextFiles(join(path, child)));
+  }
+  return [".md", ".txt", ".log"].includes(extname(path).toLowerCase()) ? [path] : [];
 }
 
 function scanGitIndex() {
@@ -133,15 +147,19 @@ function scanGitIndex() {
   }
 }
 
+function sep() {
+  return process.platform === "win32" ? "\\" : "/";
+}
+
 function scanReport(path) {
   const content = readFileSync(path, "utf8");
   const checks = [
     { pattern: /https?:\/\/pan\.baidu\.com\/s\/[^\s)]+/i, label: "完整分享链接" },
     { pattern: /\bpwd\s*[:=]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
     { pattern: /提取码\s*[:：]\s*(?!<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" },
-    { pattern: /access[_-]?token\s*[:=]|refresh[_-]?token\s*[:=]|authorization[_-]?code\s*[:=]/i, label: "授权字段" },
-    { pattern: /BAIDU_APP_SECRET\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[^\s]+/i, label: "真实应用密钥" },
-    { pattern: /TEST_SHARE_EXTRACT_CODE\s*[:=]\s*(?!configured_redacted|empty|missing|<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" }
+    { pattern: /(?:access[_-]?token|refresh[_-]?token|authorization[_-]?code)[^\S\r\n]*[:=][^\S\r\n]*(?!<redacted>|empty|missing)[^\s]+/i, label: "授权字段" },
+    { pattern: /BAIDU_APP_SECRET[^\S\r\n]*[:=][^\S\r\n]*(?!configured_redacted|empty|missing|<redacted>|这里填自己的)[^\s]+/i, label: "真实应用密钥" },
+    { pattern: /TEST_SHARE_EXTRACT_CODE[^\S\r\n]*[:=][^\S\r\n]*(?!configured_redacted|empty|missing|<redacted>)[A-Za-z0-9]{4,}/i, label: "真实提取码" }
   ];
 
   checks.forEach((check) => {

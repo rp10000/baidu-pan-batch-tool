@@ -17,6 +17,7 @@ import { parseShareLinks } from "../domain/shareParser";
 import { MockProcessingService } from "../services/MockProcessingService";
 import { RealProcessingService } from "../services/RealProcessingService";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
+import { openShareLinkForVerification } from "../services/ShareVerificationService";
 import { useStorageMode } from "../state/storageModeStore";
 import { useTaskStore } from "../state/taskStore";
 import type { PageId } from "../types";
@@ -80,7 +81,9 @@ export function BatchProcessPage({
     setRunning(true);
     setModalOpen(false);
     let created = false;
-    const canUseRealAdapter = (storage.activeMode === "bdpan_wsl" || storage.activeMode === "windows_local_cli") && storage.connectionOk;
+    const canUseRealAdapter =
+      storage.activeMode === "windows_local_cli" ||
+      (storage.activeMode === "bdpan_wsl" && storage.connectionOk);
     const service = canUseRealAdapter
       ? new RealProcessingService(storage.getActiveAdapter())
       : new MockProcessingService();
@@ -96,6 +99,8 @@ export function BatchProcessPage({
       updateTask(task);
       setModalOpen(true);
       onToast(task.shareError ? `任务完成：${task.shareError}` : `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`);
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "真实处理失败");
     } finally {
       setRunning(false);
     }
@@ -161,10 +166,19 @@ export function BatchProcessPage({
       onToast("当前任务还没有生成分享信息");
       return;
     }
+    if (activeTask.shareResult.source === "mock") {
+      onToast("Mock 演示链接不可作为真实分享复制");
+      return;
+    }
     void navigator.clipboard
-      ?.writeText(`${activeTask.shareResult.newShareUrl}\n提取码：${activeTask.shareResult.extractCode}`)
+      ?.writeText(`${activeTask.shareResult.shareUrl}\n提取码：${activeTask.shareResult.extractCode ?? ""}`)
       .catch(() => undefined);
     onToast("已复制分享链接和提取码");
+  }
+
+  function openShareInfo() {
+    const status = openShareLinkForVerification(activeTask?.shareResult);
+    onToast(status === "opened_in_browser" ? "已打开默认浏览器验证链接" : `链接无法打开：${status}`);
   }
 
   return (
@@ -209,6 +223,7 @@ export function BatchProcessPage({
             onClose={() => setModalOpen(false)}
             onCopy={copyShareInfo}
             onViewDetails={() => onNavigate("workbench")}
+            onOpenShare={openShareInfo}
             onExportJson={() => activeTask && exportTaskAsJson(activeTask)}
             onExportCsv={() => activeTask && exportTaskAsCsv(activeTask)}
           />
@@ -240,10 +255,21 @@ export function BatchProcessPage({
               {storage.activeMode === "windows_local_cli" && (
                 <div>
                   <span>真实处理</span>
-                  <b>{storage.connectionOk ? "开始真实处理" : "当前 CLI 未连接，无法完成核心闭环"}</b>
+                  <b>通过 Electron main 调用本地 CLI；失败会显示原因</b>
                 </div>
               )}
+              {storage.activeMode === "windows_local_cli" && (
+                <>
+                  <div><span>文件操作</span><b>已验证：ls / mkdir / upload / rename / mv</b></div>
+                  <div><span>创建分享</span><b>以真实 CLI 返回为准，失败不显示假链接</b></div>
+                  <div><span>分享链接转存</span><b>未验证，缺用户自有测试分享链接</b></div>
+                  <div><span>当前结果来源</span><b>{activeTask?.shareResult?.source === "local_cli" ? "真实 CLI" : activeTask?.shareResult?.source === "mock" ? "Mock 演示" : "等待任务结果"}</b></div>
+                </>
+              )}
             </div>
+            {storage.activeMode === "windows_local_cli" && (
+              <p className="notice">分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。</p>
+            )}
           </Card>
           <RenameRuleForm
             renameRule={options.renameRule}
@@ -260,7 +286,7 @@ export function BatchProcessPage({
                 <b>{activeTask?.name ?? "等待任务完成"}</b>
                 <span>
                   {activeTask?.shareResult
-                    ? `${activeTask.shareResult.newShareUrl} · 提取码 ${activeTask.shareResult.extractCode}`
+                    ? `${activeTask.shareResult.source === "mock" ? "Mock 演示：" : ""}${activeTask.shareResult.shareUrl} · 提取码 ${activeTask.shareResult.extractCode ?? "----"}`
                     : "当前页面会按接入模式显示真实结果、降级原因或 Mock 演示结果"}
                 </span>
               </div>

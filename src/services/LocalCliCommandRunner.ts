@@ -18,6 +18,11 @@ export class LocalCliBridgeCommandRunner implements LocalCliCommandRunner {
   constructor(private readonly endpoint = "http://127.0.0.1:17633/local-cli/run") {}
 
   async run(command: LocalCliCommand): Promise<LocalCliCommandResult> {
+    const desktopApi = getDesktopApi();
+    if (desktopApi?.localCliRun) {
+      return desktopApi.localCliRun(command);
+    }
+
     try {
       const response = await fetch(this.endpoint, {
         method: "POST",
@@ -32,6 +37,11 @@ export class LocalCliBridgeCommandRunner implements LocalCliCommandRunner {
       return { exitCode: 127, stdout: "", stderr: "local cli bridge unavailable" };
     }
   }
+}
+
+function getDesktopApi(): { localCliRun?: (command: LocalCliCommand) => Promise<LocalCliCommandResult> } | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as typeof window & { panjieDesktop?: { localCliRun?: (command: LocalCliCommand) => Promise<LocalCliCommandResult> } }).panjieDesktop;
 }
 
 export function redactCliOutput(value: string): string {

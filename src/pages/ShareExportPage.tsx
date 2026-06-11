@@ -1,6 +1,7 @@
 import { ClipboardCopy, Download, FileJson, Sheet } from "lucide-react";
 import type { ProcessingTask } from "../domain/types";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
+import { openShareLinkForVerification, verifyShareResult } from "../services/ShareVerificationService";
 import { useTaskStore } from "../state/taskStore";
 import { Card, StatCard, StatusDot, Tag } from "../components/ui";
 
@@ -14,8 +15,12 @@ export function ShareExportPage({ onToast }: { onToast: (message: string) => voi
       onToast("当前任务还没有生成分享信息");
       return;
     }
+    if (task.shareResult.source === "mock") {
+      onToast("Mock 演示链接不可作为真实分享复制");
+      return;
+    }
     void navigator.clipboard
-      ?.writeText(`${task.shareResult.newShareUrl}\n提取码：${task.shareResult.extractCode}`)
+      ?.writeText(`${task.shareResult.shareUrl}\n提取码：${task.shareResult.extractCode ?? ""}`)
       .catch(() => undefined);
     onToast("已复制分享信息");
   }
@@ -80,10 +85,10 @@ function ShareTaskTable({
                 <td>{task.name}</td>
                 <td>
                   <StatusDot tone={task.shareResult ? "green" : task.shareError ? "orange" : "orange"} />
-                  {task.shareResult ? "已生成" : task.shareError ? "需人工" : "待生成"}
+                  {task.shareResult?.source === "mock" ? "Mock 演示" : task.shareResult ? "已生成" : task.shareError ? "需人工" : "待生成"}
                 </td>
                 <td>永久有效</td>
-                <td>{task.shareResult?.extractCode ?? "----"}</td>
+                <td>{task.shareResult?.source === "mock" ? "演示" : task.shareResult?.extractCode ?? "----"}</td>
                 <td>{task.status === "completed" ? "可导出" : "处理中"}</td>
                 <td>
                   <button className="text-btn" type="button" onClick={() => onCopy(task)}>
@@ -105,16 +110,22 @@ function ShareTaskTable({
 }
 
 function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () => void }) {
+  const verification = verifyShareResult(task?.shareResult);
+  const isMock = task?.shareResult?.source === "mock";
+  function openShare() {
+    openShareLinkForVerification(task?.shareResult);
+  }
+
   return (
-    <Card title="分享详情" action={<Tag tone="green">已生成</Tag>}>
+    <Card title="分享详情" action={<Tag tone={task?.shareError ? "orange" : isMock ? "blue" : "green"}>{task?.shareError ? "失败" : isMock ? "Mock" : "已生成"}</Tag>}>
       <div className="form-grid one">
         <label>
           <span>新分享链接</span>
-          <input className="input" value={task?.shareResult?.newShareUrl ?? task?.shareError ?? "等待生成"} readOnly />
+          <input className="input" value={task?.shareResult?.shareUrl ?? task?.shareError ?? "等待生成"} readOnly />
         </label>
         <label>
           <span>提取码</span>
-          <input className="input" value={task?.shareResult?.extractCode ?? "----"} readOnly />
+          <input className="input" value={isMock ? "Mock 演示" : task?.shareResult?.extractCode ?? "----"} readOnly />
         </label>
         <label>
           <span>有效期</span>
@@ -128,11 +139,20 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
             readOnly
           />
         </label>
+        <label>
+          <span>结果来源</span>
+          <input className="input" value={task?.shareResult?.source === "local_cli" ? `真实 CLI / ${verification}` : task?.shareResult?.source === "mock" ? "Mock 演示链接，不可真实访问" : "等待生成"} readOnly />
+        </label>
       </div>
-      <button className="primary-btn full" type="button" onClick={onCopy}>
-        <ClipboardCopy size={17} />
-        复制分享信息
-      </button>
+      <div className="dual-actions">
+        <button className="primary-btn full" type="button" onClick={onCopy} disabled={isMock || !task?.shareResult}>
+          <ClipboardCopy size={17} />
+          复制分享信息
+        </button>
+        <button className="secondary-btn full" type="button" onClick={openShare} disabled={verification !== "format_valid"}>
+          打开链接验证
+        </button>
+      </div>
     </Card>
   );
 }

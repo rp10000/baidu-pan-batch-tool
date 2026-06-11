@@ -30,48 +30,49 @@ export class RealProcessingService implements ProcessingService {
 
     await runStage(task, "link_parse", "parsing", 8, onUpdate, this.delayMs, async () => undefined);
 
-    const validInputs = task.inputs.filter((input) => input.valid && !input.duplicate);
-    await runStage(task, "transfer", "transferring", 25, onUpdate, this.delayMs, async () => {
-      for (const input of validInputs) {
-        const result = await this.adapter.transferSharedLink({
-          url: input.url,
-          extractCode: input.extractCode,
-          targetDirectory: task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}`
-        });
-        if (!result.ok) {
-          throw new Error(result.error ?? "转存失败");
+    try {
+      const validInputs = task.inputs.filter((input) => input.valid && !input.duplicate);
+      await runStage(task, "transfer", "transferring", 25, onUpdate, this.delayMs, async () => {
+        for (const input of validInputs) {
+          const result = await this.adapter.transferSharedLink({
+            url: input.url,
+            extractCode: input.extractCode,
+            targetDirectory: task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}`
+          });
+          if (!result.ok) {
+            throw new Error(result.error ?? "转存失败");
+          }
         }
-      }
-    });
+      });
 
-    await runStage(task, "classify", "classifying", 45, onUpdate, this.delayMs, async () => {
-      const files = await this.adapter.listFiles({ remoteDirectory: task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}` });
-      task.processedFiles = files
-        .filter((file) => !file.isDirectory)
-        .map((file, index) => {
-          const category = classifyByName(file.name);
-          return {
-            id: file.id,
-            originalName: file.name,
-            newName: file.name,
-            category,
-            status: "transferred",
-            risks: [],
-            remotePath: file.path,
-            targetDirectory: task.options.targetDirectory
-              .replace("{taskId}", task.id)
-              .replace("{分类}", category)
-          } satisfies ProcessedFile;
-        });
-      if (task.processedFiles.length === 0 && validInputs.length > 0) {
-        task.processedFiles = validInputs.map((input, index) => toFallbackFile(input, index, task));
-      }
-    });
+      await runStage(task, "classify", "classifying", 45, onUpdate, this.delayMs, async () => {
+        const files = await this.adapter.listFiles({ remoteDirectory: task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}` });
+        task.processedFiles = files
+          .filter((file) => !file.isDirectory)
+          .map((file, index) => {
+            const category = classifyByName(file.name);
+            return {
+              id: file.id,
+              originalName: file.name,
+              newName: file.name,
+              category,
+              status: "transferred",
+              risks: [],
+              remotePath: file.path,
+              targetDirectory: task.options.targetDirectory
+                .replace("{taskId}", task.id)
+                .replace("{分类}", category)
+            } satisfies ProcessedFile;
+          });
+        if (task.processedFiles.length === 0 && validInputs.length > 0) {
+          task.processedFiles = validInputs.map((input, index) => toFallbackFile(input, index, task));
+        }
+      });
 
-    await runStage(task, "watermark_scan", "scanning", 52, onUpdate, this.delayMs, async () => undefined);
-    await runStage(task, "traffic_scan", "scanning", 58, onUpdate, this.delayMs, async () => undefined);
+      await runStage(task, "watermark_scan", "scanning", 52, onUpdate, this.delayMs, async () => undefined);
+      await runStage(task, "traffic_scan", "scanning", 58, onUpdate, this.delayMs, async () => undefined);
 
-    await runStage(task, "rename", "cleaning", 74, onUpdate, this.delayMs, async () => {
+      await runStage(task, "rename", "cleaning", 74, onUpdate, this.delayMs, async () => {
       for (const [index, file] of task.processedFiles.entries()) {
         file.newName = options.autoRenameFiles
           ? applyRenameRule({
@@ -90,9 +91,9 @@ export class RealProcessingService implements ProcessingService {
           file.status = "failed";
         }
       }
-    });
+      });
 
-    await runStage(task, "auto_clean", "cleaning", 86, onUpdate, this.delayMs, async () => {
+      await runStage(task, "auto_clean", "cleaning", 86, onUpdate, this.delayMs, async () => {
       const directories = new Set(task.processedFiles.map((file) => file.targetDirectory ?? task.outputDirectory ?? ""));
       for (const directory of directories) {
         if (directory) {
@@ -111,9 +112,9 @@ export class RealProcessingService implements ProcessingService {
           file.status = "failed";
         }
       }
-    });
+      });
 
-    await runStage(task, "create_share", "sharing", 100, onUpdate, this.delayMs, async () => {
+      await runStage(task, "create_share", "sharing", 100, onUpdate, this.delayMs, async () => {
       if (!options.autoCreateShareCode) {
         return;
       }
@@ -123,16 +124,27 @@ export class RealProcessingService implements ProcessingService {
       });
       if (share.ok) {
         task.shareResult = {
-          newShareUrl: share.shareUrl ?? "",
-          extractCode: share.extractCode ?? ""
+          source: share.source ?? "manual",
+          shareUrl: share.shareUrl ?? "",
+          extractCode: share.extractCode,
+          expireAt: share.expireAt,
+          verified: Boolean(share.verified),
+          redactedForLog: share.redactedForLog ?? "<redacted-share-url>"
         };
       } else {
         task.shareError = share.error ?? "创建分享链接失败";
+        throw new Error(task.shareError);
       }
-    });
+      });
 
-    task.status = "completed";
-    task.progress = 100;
+      task.status = "completed";
+      task.progress = 100;
+    } catch (error) {
+      const runningStage = Object.entries(task.stages).find(([, status]) => status === "running")?.[0] as keyof ProcessingTask["stages"] | undefined;
+      if (runningStage) task.stages[runningStage] = "failed";
+      task.status = "failed";
+      task.shareError = error instanceof Error ? error.message : "真实处理失败";
+    }
     task.summary = summarizeRealTask(task);
     emit(task, onUpdate);
     return cloneTask(task);

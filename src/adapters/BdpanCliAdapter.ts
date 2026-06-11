@@ -122,7 +122,16 @@ export class BdpanCliAdapter implements StorageAdapter {
   async createShareLink(input: {
     remotePaths: string[];
     periodDays: 0 | 1 | 7 | 30;
-  }): Promise<{ ok: boolean; shareUrl?: string; extractCode?: string; periodDays?: number; error?: string }> {
+  }): Promise<{
+    ok: boolean;
+    source?: "local_cli";
+    shareUrl?: string;
+    extractCode?: string;
+    verified?: boolean;
+    redactedForLog?: string;
+    periodDays?: number;
+    error?: string;
+  }> {
     const result = normalizeBdpanResult(
       await this.runner.run({
         subcommand: "share",
@@ -136,8 +145,11 @@ export class BdpanCliAdapter implements StorageAdapter {
     const data = isRecord(result.data) ? result.data : {};
     return {
       ok: true,
+      source: "local_cli",
       shareUrl: asString(data.link),
       extractCode: asString(data.pwd),
+      verified: Boolean(asString(data.link)),
+      redactedForLog: "<redacted-share-url>",
       periodDays: asNumber(data.period) ?? input.periodDays
     };
   }

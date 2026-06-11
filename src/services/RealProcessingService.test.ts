@@ -32,7 +32,7 @@ const options: ProcessingOptions = {
 };
 
 describe("RealProcessingService", () => {
-  it("runs the bdpan transfer to classify, rename, move, and share flow with share fallback", async () => {
+  it("keeps file operations but fails the task when real share creation fails", async () => {
     const calls: string[] = [];
     const adapter: StorageAdapter = {
       mode: "bdpan_wsl",
@@ -88,7 +88,7 @@ describe("RealProcessingService", () => {
     expect(calls.some((call) => call.startsWith("rename:"))).toBe(true);
     expect(calls.some((call) => call.startsWith("mv:"))).toBe(true);
     expect(calls).toContain("share");
-    expect(task.status).toBe("completed");
+    expect(task.status).toBe("failed");
     expect(task.processedFiles).toHaveLength(2);
     expect(task.summary.transferredFiles).toBe(2);
     expect(task.shareResult).toBeUndefined();

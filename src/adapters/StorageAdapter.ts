@@ -78,8 +78,12 @@ export interface StorageAdapter {
     periodDays: 0 | 1 | 7 | 30;
   }): Promise<{
     ok: boolean;
+    source?: "mock" | "local_cli" | "manual";
     shareUrl?: string;
     extractCode?: string;
+    expireAt?: string;
+    verified?: boolean;
+    redactedForLog?: string;
     periodDays?: number;
     error?: string;
   }>;

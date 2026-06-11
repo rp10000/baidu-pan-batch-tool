@@ -1,6 +1,6 @@
 # 最终验收报告
 
-状态：Windows 桌面客户端 MVP 已完成；分享链接 transfer 仍需用户自有测试分享链接最终确认。
+状态：Windows 桌面客户端可启动，文件操作链路可用；真实创建分享链接当前未通过，不能算完整闭环完成。分享链接 transfer 仍需用户自有测试分享链接最终确认。
 
 ## 桌面客户端
 
@@ -18,10 +18,10 @@
 - 登录态来源：BaiduPCS-Go 本地配置目录 `%APPDATA%/BaiduPCS-Go`
 - 浏览器凭据读取：否
 - `ls/mkdir/upload/rename/mv`：pass
-- `share`：pass，报告只记录 `generated_redacted`
+- `share`：fail，BaiduPCS-Go 未返回可用 `pan.baidu.com` 分享链接，UI 必须显示失败原因而不是假链接
 - `transfer`：`blocked_missing_test_share`
 
-transfer 当前没有伪造成成功。原因是：自造分享输出未解析出可复用测试链接，且当前未提供用户自有测试分享链接和提取码。最短解决方式是在本地环境变量中临时提供自有小测试分享：
+share 和 transfer 当前都没有伪造成成功。share 当前失败原因以脱敏 CLI 错误展示；transfer 当前未提供用户自有测试分享链接和提取码。最短解决方式是在本地环境变量中临时提供自有小测试分享：
 
 ```powershell
 $env:TEST_SHARE_URL="<redacted>"
@@ -53,11 +53,12 @@ npm run smoke:local-cli
 ## 验证结果
 
 - `npm run assets:generate`: pass
-- `npm test`: pass，21 files / 53 tests
+- `npm test`: pass，24 files / 63 tests
 - `npm run build`: pass
 - `npm run security:scan`: pass
-- `npm run e2e`: pass，6 tests
-- `npm run smoke:local-cli`: diagnostic，除 transfer 测试链接外通过
+- `npm run e2e`: pass，7 tests
+- `npm run smoke:local-cli`: diagnostic，文件操作通过，share fail，transfer blocked_missing_test_share
+- `npm run smoke:share-real`: fail，未解析到真实可用分享链接
 - `npm run package:win`: pass
 - `npm run smoke:desktop`: pass，portable exe DOM/UI 可见，renderer console 无 error
 

@@ -28,7 +28,7 @@ const baiduPcsGoProfile: GenericBaiduCliProfile = {
     upload: (localPath, remotePath) => ["upload", localPath, remotePath],
     move: (remotePath, targetPath) => ["mv", remotePath, targetPath],
     transfer: (url, extractCode) => ["transfer", url, extractCode ?? ""].filter(Boolean),
-    share: (remotePaths) => ["share", ...remotePaths]
+    share: (remotePaths, periodDays) => ["share", "set", "--period", String(periodDays), "-f", ...remotePaths]
   }
 };
 

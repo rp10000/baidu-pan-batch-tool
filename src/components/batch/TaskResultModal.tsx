@@ -10,6 +10,7 @@ export function TaskResultModal({
   task,
   onClose,
   onCopy,
+  onOpenShare,
   onViewDetails,
   onExportJson,
   onExportCsv
@@ -18,6 +19,7 @@ export function TaskResultModal({
   task?: ProcessingTask;
   onClose: () => void;
   onCopy: () => void;
+  onOpenShare: () => void;
   onViewDetails: () => void;
   onExportJson: () => void;
   onExportCsv: () => void;
@@ -53,7 +55,7 @@ export function TaskResultModal({
           <b>{task.options.scanOptions.createCleanCopy ? "已请求生成清理副本" : "未启用"}</b>
         </div>
       </div>
-      <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} />
+      <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} onOpen={onOpenShare} />
       <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />
       <div className="modal-actions">
         <button className="secondary-btn" type="button" onClick={onViewDetails}>

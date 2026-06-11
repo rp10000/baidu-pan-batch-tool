@@ -28,6 +28,13 @@ class FakeLocalCliRunner implements LocalCliCommandRunner {
     if (command.args[0] === "share" && this.scenario === "unsupported") {
       return { exitCode: 3, stdout: "", stderr: "unsupported share" };
     }
+    if (command.args[0] === "share") {
+      return {
+        exitCode: 0,
+        stdout: "分享链接: https://pan.baidu.com/s/1fake-smoke-share?pwd=9abc\n提取码: 9abc",
+        stderr: ""
+      };
+    }
     return { exitCode: 0, stdout: "ok", stderr: "" };
   }
 }

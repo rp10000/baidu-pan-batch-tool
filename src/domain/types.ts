@@ -81,8 +81,12 @@ export interface ProcessedFile {
 }
 
 export interface ShareResult {
-  newShareUrl: string;
-  extractCode: string;
+  source: "mock" | "local_cli" | "manual";
+  shareUrl: string;
+  extractCode?: string;
+  expireAt?: string;
+  verified: boolean;
+  redactedForLog: string;
   copied?: boolean;
 }
 
