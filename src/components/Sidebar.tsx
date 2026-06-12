@@ -12,7 +12,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="brand">
         <div className="avatar-wrap">
-          <img className="avatar" src="/brand-avatar.png" alt="盘姬头像" />
+          <img className="avatar" src="./brand-avatar.png" alt="盘姬头像" />
         </div>
         <h1>
           <span>盘姬</span>
@@ -43,9 +43,9 @@ export function Sidebar({
 
       <div className="sidebar-foot">
         <span className="status-dot" />
-        本地 mock 原型运行中
+        Windows 本地 CLI 主线
         <br />
-        仅模拟授权与处理流程
+        真实失败不伪造成功
       </div>
     </aside>
   );

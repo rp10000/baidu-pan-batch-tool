@@ -9,7 +9,7 @@ export const BAIDU_CAPABILITY_NAMES = [
 ] as const;
 
 export type BaiduCapabilityName = (typeof BAIDU_CAPABILITY_NAMES)[number];
-export type BaiduCapabilityStatus = "supported" | "unsupported" | "unknown_needs_manual_verification";
+export type BaiduCapabilityStatus = "supported" | "unsupported" | "needs_official_verification";
 export type BaiduCapabilityMatrix = Record<BaiduCapabilityName, BaiduCapabilityStatus>;
 
 export interface BaiduAdapter {
@@ -17,7 +17,7 @@ export interface BaiduAdapter {
 }
 
 const UNKNOWN_MATRIX = Object.fromEntries(
-  BAIDU_CAPABILITY_NAMES.map((name) => [name, "unknown_needs_manual_verification"])
+  BAIDU_CAPABILITY_NAMES.map((name) => [name, "needs_official_verification"])
 ) as BaiduCapabilityMatrix;
 
 export function createMockBaiduAdapter(

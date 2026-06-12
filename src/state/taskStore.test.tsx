@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProcessingTask } from "../domain/types";
 import { createEmptyStages } from "../domain/pipeline";
+import { defaultStandardScanOptions } from "../domain/scanOptions";
 import { createInitialTaskState, getActiveTask, taskReducer } from "./taskStore";
 
 function makeTask(id: string, progress = 0): ProcessingTask {
@@ -12,6 +13,8 @@ function makeTask(id: string, progress = 0): ProcessingTask {
     progress,
     inputs: [],
     options: {
+      transferMode: "scan_clean",
+      mergeLinks: false,
       autoClassify: true,
       autoTransfer: true,
       scanWatermark: true,
@@ -21,7 +24,10 @@ function makeTask(id: string, progress = 0): ProcessingTask {
       autoCreateShareCode: true,
       autoRenameFiles: true,
       renameRule: "{分类}_{日期}_{序号}",
-      targetDirectory: "/自动归档/{分类}"
+      targetDirectory: "/自动归档/{分类}",
+      scanOptions: { ...defaultStandardScanOptions(), createCleanCopy: true },
+      shareTiming: "share_immediately",
+      shareTemplate: { type: "xiaohongshu_virtual", title: "资料包" }
     },
     stages: createEmptyStages(),
     processedFiles: [],

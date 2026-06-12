@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { PageId, ToastState } from "../types";
+import { AppTitleBar } from "./AppTitleBar";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -18,11 +19,14 @@ export function AppShell({
 }) {
   return (
     <main className="app-shell">
-      <Sidebar activePage={activePage} onPageChange={onPageChange} />
-      <section className="content-shell">
-        <TopBar onNewTask={onNewTask} />
-        <div className="page-stage">{children}</div>
-      </section>
+      <AppTitleBar />
+      <div className="app-body">
+        <Sidebar activePage={activePage} onPageChange={onPageChange} />
+        <section className="content-shell">
+          <TopBar onNewTask={onNewTask} />
+          <div className="page-stage">{children}</div>
+        </section>
+      </div>
       <div className={`toast ${toast.visible ? "show" : ""}`}>{toast.message}</div>
     </main>
   );

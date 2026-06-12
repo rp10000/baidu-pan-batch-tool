@@ -1,12 +1,14 @@
 import { Activity, Archive, CheckCircle2, Clock3, FileScan, Share2, Zap } from "lucide-react";
 import { PIPELINE_LABELS, PIPELINE_ORDER } from "../domain/pipeline";
 import { useTaskStore } from "../state/taskStore";
+import { useStorageMode } from "../state/storageModeStore";
 import type { PageId } from "../types";
 import { Card, StatCard, StatusDot, Tag } from "../components/ui";
 
 export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const { tasks, activeTask, selectTask } = useTaskStore();
-  const completedTasks = tasks.filter((task) => task.status === "completed");
+  const storage = useStorageMode();
+  const completedTasks = tasks.filter((task) => task.status === "completed" || task.status === "partial_completed");
   const riskCount = tasks.reduce((sum, task) => sum + task.processedFiles.flatMap((file) => file.risks).length, 0);
   const transferredCount = tasks.reduce((sum, task) => sum + task.summary.transferredFiles, 0);
   const shareCount = tasks.filter((task) => task.shareResult).length;
@@ -56,7 +58,7 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
                     </td>
                     <td>
                       <StatusDot tone={task.status === "completed" ? "green" : task.status === "failed" ? "red" : "orange"} />
-                      {task.status === "completed" ? "已完成" : task.status === "failed" ? "失败" : "处理中"}
+                      {task.status === "completed" ? "已完成" : task.status === "partial_completed" ? "部分完成" : task.status === "failed" ? "失败" : "处理中"}
                     </td>
                   </tr>
                 ))}
@@ -72,12 +74,29 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
 
         <Card title="全流程概览" action={<Activity size={18} />}>
           <div className="flow-stack">
-            {["粘贴链接", "识别提取码", "转存分类", "扫描风险", "生成分享码"].map((item, index) => (
+            {["粘贴分享文本", "识别提取码", "原样转存", "资源分类", "生成永久分享"].map((item, index) => (
               <div className="flow-item" key={item}>
                 <b>{index + 1}</b>
                 <span>{item}</span>
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card title="快速处理状态" action={<Tag tone="green">默认</Tag>}>
+          <div className="rename-preview">
+            <div><span>当前接入模式</span><b>{storage.displayName}</b></div>
+            <div><span>主流程</span><b>原样转存 → 内容分类 → 永久分享 → 文案导出</b></div>
+            <div><span>保存路径</span><b>{activeTask?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b></div>
+            <div><span>检查状态</span><b>{activeTask?.resource?.checkStatus === "checked" ? "已检查" : activeTask?.options.scanOptions.enabled ? "按需检查已启用" : "未检查"}</b></div>
+          </div>
+        </Card>
+
+        <Card title="深度扫描任务" action={<Tag tone={activeTask?.options.scanOptions.mode === "deep" ? "orange" : "blue"}>按需</Tag>}>
+          <div className="rename-preview">
+            <div><span>OCR / QR</span><b>{activeTask?.options.scanOptions.enabled ? "按任务选项执行" : "未初始化"}</b></div>
+            <div><span>视频抽帧</span><b>{activeTask?.options.scanOptions.scanVideo ? "已启用" : "未启用"}</b></div>
+            <div><span>清理副本</span><b>{activeTask?.options.scanOptions.createCleanCopy ? "生成副本" : "未启用"}</b></div>
           </div>
         </Card>
 
@@ -112,6 +131,9 @@ function currentStageLabel(task: ReturnType<typeof useTaskStore>["tasks"][number
   }
   if (task.status === "completed") {
     return "生成分享码";
+  }
+  if (task.status === "partial_completed") {
+    return "分享失败";
   }
   return "等待处理";
 }

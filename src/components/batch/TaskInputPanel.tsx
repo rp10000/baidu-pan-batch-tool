@@ -1,5 +1,4 @@
 import { FileUp, Link2 } from "lucide-react";
-import { inputSample } from "../../data/prototypeData";
 import { Card, Tag } from "../ui";
 
 export function TaskInputPanel({
@@ -7,7 +6,9 @@ export function TaskInputPanel({
   onInputChange,
   mode,
   onModeChange,
-  stats
+  stats,
+  onRestoreSample,
+  onClearInput
 }: {
   input: string;
   onInputChange: (value: string) => void;
@@ -19,6 +20,8 @@ export function TaskInputPanel({
     duplicate: number;
     invalid: number;
   };
+  onRestoreSample: () => void;
+  onClearInput: () => void;
 }) {
   return (
     <Card
@@ -44,6 +47,7 @@ export function TaskInputPanel({
         className="textarea link-textarea"
         value={input}
         onChange={(event) => onInputChange(event.target.value)}
+        placeholder="粘贴百度网盘分享链接和提取码，每行一个"
         spellCheck={false}
       />
 
@@ -62,9 +66,14 @@ export function TaskInputPanel({
         </div>
       </div>
 
-      <button className="ghost-fill" type="button" onClick={() => onInputChange(inputSample)}>
-        恢复示例输入
-      </button>
+      <div className="input-actions">
+        <button className="ghost-fill" type="button" onClick={onRestoreSample}>
+          恢复示例输入
+        </button>
+        <button className="secondary-btn" type="button" onClick={onClearInput}>
+          清空
+        </button>
+      </div>
     </Card>
   );
 }

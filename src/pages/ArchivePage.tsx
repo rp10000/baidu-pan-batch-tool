@@ -1,96 +1,109 @@
-import { MoveRight, Wand2 } from "lucide-react";
-import type { ProcessedFile } from "../domain/types";
+import { ClipboardList, Tags } from "lucide-react";
+import type { ProcessingTask, ResourceContentCategory } from "../domain/types";
 import { useTaskStore } from "../state/taskStore";
-import { Card, StatCard, StatusDot, Switch, Tag } from "../components/ui";
+import { Card, StatCard, StatusDot, Tag } from "../components/ui";
+
+const CATEGORIES: ResourceContentCategory[] = [
+  "课程资料",
+  "设计素材",
+  "文档模板",
+  "软件工具",
+  "电子书/PDF",
+  "图片素材",
+  "音频资料",
+  "视频素材",
+  "综合资料包",
+  "未识别"
+];
 
 export function ArchivePage() {
-  const { activeTask } = useTaskStore();
-  const files = activeTask?.processedFiles ?? [];
+  const { activeTask, tasks } = useTaskStore();
+  const category = activeTask?.resource?.contentCategory ?? "未识别";
 
   return (
     <section className="page">
       <div className="page-title">
         <div>
           <h2>资源归档</h2>
-          <p>自动分类规则、文件分类结果、新文件名预览、目标目录与批量移动建议</p>
+          <p>这里展示资源内容分类，用于发货文案和导出；默认不移动、不重命名网盘里的文件。</p>
         </div>
-        <button className="primary-btn" type="button">
-          <MoveRight size={18} />
-          应用分类
+        <button className="primary-btn" type="button" disabled>
+          <Tags size={18} />
+          手动改分类
         </button>
       </div>
 
       <div className="kpi-grid">
-        <StatCard icon="▶" label="视频" value={countByExtension(files, [".mp4", ".mkv", ".avi"])} tone="blue" />
-        <StatCard icon="▣" label="文档" value={countByExtension(files, [".pdf", ".docx", ".pptx", ".txt"])} tone="purple" />
-        <StatCard icon="▧" label="图片" value={countByExtension(files, [".jpg", ".png", ".webp"])} tone="pink" />
-        <StatCard icon="▤" label="其他" value={countOther(files)} tone="orange" />
+        <StatCard icon="类" label="当前分类" value={category} tone="blue" />
+        <StatCard icon="存" label="保存路径" value={activeTask?.resource?.savePath ? 1 : 0} tone="green" />
+        <StatCard icon="文" label="文件数量" value={activeTask?.summary.recognizedFiles ?? 0} tone="purple" />
+        <StatCard icon="检" label="检查状态" value={checkStatusLabel(activeTask)} tone="orange" />
       </div>
 
       <div className="archive-grid">
-        <ClassificationRules />
-        <ArchiveFileTable files={files} targetDirectory={activeTask?.options.targetDirectory ?? "/自动归档/{分类}"} />
-        <RenamePreviewPanel
-          renameRule={activeTask?.options.renameRule ?? "{分类}_{原文件名}_{日期}_{序号}"}
-          targetDirectory={activeTask?.options.targetDirectory ?? "/自动归档/{分类}"}
-        />
+        <ResourceCategoryPanel task={activeTask} />
+        <ResourceHistoryTable tasks={tasks} activeTaskId={activeTask?.id} />
+        <OriginalFilesPanel task={activeTask} />
       </div>
     </section>
   );
 }
 
-function ClassificationRules() {
+function ResourceCategoryPanel({ task }: { task?: ProcessingTask }) {
   return (
-    <Card title="自动分类规则" action={<Tag>规则启用</Tag>}>
-      {[
-        ["视频文件", ".mp4 .mkv .avi", true],
-        ["文档文件", ".pdf .docx .pptx", true],
-        ["图片文件", ".jpg .png .webp", true],
-        ["压缩包", ".zip .rar .7z", true],
-        ["未知类型", "进入未分类目录", false]
-      ].map(([name, desc, checked]) => (
-        <div className="rule-row" key={String(name)}>
-          <span>
-            <b>{name}</b>
-            <small>{desc}</small>
-          </span>
-          <Switch checked={Boolean(checked)} />
+    <Card title="资源分类结果" action={<Tag tone="green">资源级分类</Tag>}>
+      <div className="rename-preview">
+        <div>
+          <span>资源标题</span>
+          <b>{task?.resource?.title ?? task?.name ?? "暂无任务"}</b>
         </div>
-      ))}
+        <div>
+          <span>内容分类</span>
+          <b>{task?.resource?.contentCategory ?? "未识别"}</b>
+        </div>
+        <div>
+          <span>内容摘要</span>
+          <b>{task?.resource?.contentSummary ?? "完成转存后自动识别资源内容。"}</b>
+        </div>
+        <div>
+          <span>保存路径</span>
+          <b>{task?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b>
+        </div>
+      </div>
     </Card>
   );
 }
 
-function ArchiveFileTable({ files, targetDirectory }: { files: ProcessedFile[]; targetDirectory: string }) {
+function ResourceHistoryTable({ tasks, activeTaskId }: { tasks: ProcessingTask[]; activeTaskId?: string }) {
   return (
-    <Card title="文件分类结果" className="span-2" action={<Tag tone="green">重命名预览</Tag>}>
+    <Card title="最近资源分类" className="span-2" action={<Tag>不改变文件结构</Tag>}>
       <div className="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>原文件名</th>
-              <th>分类</th>
-              <th>新文件名</th>
-              <th>目标目录</th>
+              <th>资源标题</th>
+              <th>内容分类</th>
+              <th>保存路径</th>
+              <th>检查状态</th>
               <th>状态</th>
             </tr>
           </thead>
           <tbody>
-            {files.map((file) => (
-              <tr key={file.originalName}>
-                <td>{file.originalName}</td>
-                <td>{file.category}</td>
-                <td>{file.newName}</td>
-                <td>{targetDirectory.replace("{分类}", file.category)}</td>
+            {tasks.map((task) => (
+              <tr key={task.id} className={task.id === activeTaskId ? "selected" : ""}>
+                <td>{task.resource?.title ?? task.name}</td>
+                <td>{task.resource?.contentCategory ?? "未识别"}</td>
+                <td>{task.resource?.savePath ?? task.rawDirectory ?? "未生成"}</td>
+                <td>{checkStatusLabel(task)}</td>
                 <td>
-                  <StatusDot tone={file.status === "failed" ? "red" : "green"} />
-                  {file.status === "failed" ? "需确认" : "可移动"}
+                  <StatusDot tone={task.status === "failed" ? "red" : task.status === "partial_completed" ? "orange" : "green"} />
+                  {task.status === "partial_completed" ? "部分完成" : task.status === "failed" ? "失败" : "已完成"}
                 </td>
               </tr>
             ))}
-            {files.length === 0 && (
+            {tasks.length === 0 && (
               <tr>
-                <td colSpan={5}>暂无分类结果，先完成一条批量处理任务。</td>
+                <td colSpan={5}>暂无资源分类结果，先完成一条原样转存任务。</td>
               </tr>
             )}
           </tbody>
@@ -100,33 +113,32 @@ function ArchiveFileTable({ files, targetDirectory }: { files: ProcessedFile[]; 
   );
 }
 
-function RenamePreviewPanel({ renameRule, targetDirectory }: { renameRule: string; targetDirectory: string }) {
+function OriginalFilesPanel({ task }: { task?: ProcessingTask }) {
   return (
-    <Card title="批量移动与重命名建议" action={<Wand2 size={18} />}>
+    <Card title="原样文件说明" action={<ClipboardList size={18} />}>
       <div className="rename-preview">
         <div>
-          <span>当前规则</span>
-          <b>{renameRule}</b>
+          <span>文件名</span>
+          <b>保持原名</b>
         </div>
         <div>
-          <span>目标根目录</span>
-          <b>{targetDirectory}</b>
+          <span>目录结构</span>
+          <b>保持原结构</b>
         </div>
         <div>
-          <span>冲突处理</span>
-          <b>自动追加序号</b>
+          <span>可选分类</span>
+          <b>{CATEGORIES.join(" / ")}</b>
         </div>
       </div>
-      <button className="secondary-btn full" type="button">生成重命名建议</button>
+      <p className="notice">分类只用于判断这份资源属于什么内容，方便你转发和导出，不会默认整理网盘文件夹。</p>
+      <p className="muted">当前任务文件数：{task?.summary.recognizedFiles ?? 0}</p>
     </Card>
   );
 }
 
-function countByExtension(files: ProcessedFile[], extensions: string[]): number {
-  return files.filter((file) => extensions.some((extension) => file.originalName.toLowerCase().endsWith(extension))).length;
-}
-
-function countOther(files: ProcessedFile[]): number {
-  const known = [".mp4", ".mkv", ".avi", ".pdf", ".docx", ".pptx", ".txt", ".jpg", ".png", ".webp"];
-  return files.filter((file) => !known.some((extension) => file.originalName.toLowerCase().endsWith(extension))).length;
+function checkStatusLabel(task?: ProcessingTask): string {
+  if (task?.resource?.checkStatus === "checked") return "已检查";
+  if (task?.resource?.checkStatus === "pending") return "等待检查";
+  if (task?.resource?.checkStatus === "unsupported") return "功能未接线";
+  return "未检查";
 }

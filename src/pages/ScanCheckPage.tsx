@@ -6,6 +6,7 @@ import { Card, StatCard, StatusDot, Switch, Tag } from "../components/ui";
 export function ScanCheckPage() {
   const { activeTask } = useTaskStore();
   const files = activeTask?.processedFiles ?? [];
+  const scanEnabled = Boolean(activeTask?.options.scanOptions.enabled);
   const risks = files.flatMap((file) => file.risks.map((risk) => ({ file, risk })));
   const watermarks = risks.filter(({ risk }) => risk.type === "watermark").length;
   const qrcodes = risks.filter(({ risk }) => risk.type === "qrcode").length;
@@ -17,13 +18,33 @@ export function ScanCheckPage() {
       <div className="page-title">
         <div>
           <h2>扫描检查</h2>
-          <p>检测水印、二维码、联系方式、URL 和引流内容，输出风险文件列表与报告</p>
+          <p>扫描只在任务勾选后执行；快速模式不会下载样本、OCR 或视频抽帧</p>
         </div>
         <button className="primary-btn" type="button">
           <ScanText size={18} />
-          开始扫描
+          单独扫描选中文件
         </button>
       </div>
+
+      {!scanEnabled && (
+        <Card title="检查状态：未检查" action={<Tag tone="green">原样转存</Tag>}>
+          <div className="rename-preview">
+            <div>
+              <span>资源标题</span>
+              <b>{activeTask?.resource?.title ?? activeTask?.name ?? "暂无任务"}</b>
+            </div>
+            <div>
+              <span>内容分类</span>
+              <b>{activeTask?.resource?.contentCategory ?? "未识别"}</b>
+            </div>
+            <div>
+              <span>保存路径</span>
+              <b>{activeTask?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b>
+            </div>
+          </div>
+          <p className="notice">当前任务未执行水印、二维码、联系方式或引流内容检查。只有在批量处理页切到检测清理并勾选选项后才会执行真实检查。</p>
+        </Card>
+      )}
 
       <div className="kpi-grid">
         <StatCard icon={<ShieldAlert />} label="水印风险" value={watermarks} tone="pink" />
@@ -89,7 +110,7 @@ function FilePreviewPanel({ file, risk }: { file?: ProcessedFile; risk?: Detecte
   return (
     <Card title="文件预览" action={<Tag tone="orange">{risk?.label ?? "等待扫描"}</Tag>}>
       <div className="preview-panel">
-        <img src="/brand-avatar.png" alt="风险文件预览" />
+        <img src="./brand-avatar.png" alt="风险文件预览" />
         <div className="scan-finding">
           <b>检测结果</b>
           <span>文件：{file?.newName ?? "暂无文件"}</span>
@@ -104,7 +125,7 @@ function FilePreviewPanel({ file, risk }: { file?: ProcessedFile; risk?: Detecte
 function ScanRulePanel() {
   return (
     <Card title="扫描规则">
-      {["水印检测", "二维码检测", "联系方式检测", "URL / 域名检测", "敏感词检测", "保留原文件备份"].map((rule) => (
+      {["OCR 状态：按需检查", "QR 状态：按需启用", "ffmpeg 状态：仅视频扫描检查", "联系方式检测", "URL / 域名检测", "清理副本不覆盖原文件"].map((rule) => (
         <div className="rule-row" key={rule}>
           <span>
             <StatusDot tone="blue" />

@@ -16,10 +16,10 @@ export function resolveActiveStorageMode(input: {
   connectionOk: boolean;
   message: string;
 }): { activeMode: AdapterMode; message: string } {
-  if (input.requestedMode === "bdpan_cli" && !input.connectionOk) {
+  if (input.requestedMode === "bdpan_wsl" && !input.connectionOk) {
     return {
       activeMode: "mock",
-      message: `${input.message}；当前回退 Mock`
+      message: `${input.message}；bdpan WSL 高级模式不可用，当前回退 Mock`
     };
   }
 

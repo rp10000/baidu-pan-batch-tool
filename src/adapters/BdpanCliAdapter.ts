@@ -14,14 +14,14 @@ interface BdpanListItem {
 }
 
 export class BdpanCliAdapter implements StorageAdapter {
-  readonly mode = "bdpan_cli" as const;
+  readonly mode = "bdpan_wsl" as const;
 
   constructor(private readonly runner: BdpanCommandRunner) {}
 
   async getCapabilities(): Promise<StorageCapabilities> {
     const connection = await this.checkConnection();
     if (!connection.ok) {
-      const status = connection.message.includes("未登录") ? "login_required" : "wsl_required";
+      const status = "wsl_only";
       return {
         ...DEFAULT_STORAGE_CAPABILITIES,
         checkLogin: status,
@@ -45,7 +45,7 @@ export class BdpanCliAdapter implements StorageAdapter {
       moveFile: "supported",
       downloadFile: "supported",
       uploadFile: "supported",
-      createShareLink: "unknown"
+      createShareLink: "paid_required"
     };
   }
 
@@ -122,7 +122,16 @@ export class BdpanCliAdapter implements StorageAdapter {
   async createShareLink(input: {
     remotePaths: string[];
     periodDays: 0 | 1 | 7 | 30;
-  }): Promise<{ ok: boolean; shareUrl?: string; extractCode?: string; periodDays?: number; error?: string }> {
+  }): Promise<{
+    ok: boolean;
+    source?: "local_cli";
+    shareUrl?: string;
+    extractCode?: string;
+    verified?: boolean;
+    redactedForLog?: string;
+    periodDays?: number;
+    error?: string;
+  }> {
     const result = normalizeBdpanResult(
       await this.runner.run({
         subcommand: "share",
@@ -136,8 +145,11 @@ export class BdpanCliAdapter implements StorageAdapter {
     const data = isRecord(result.data) ? result.data : {};
     return {
       ok: true,
+      source: "local_cli",
       shareUrl: asString(data.link),
       extractCode: asString(data.pwd),
+      verified: Boolean(asString(data.link)),
+      redactedForLog: "<redacted-share-url>",
       periodDays: asNumber(data.period) ?? input.periodDays
     };
   }
@@ -153,11 +165,18 @@ function toRemoteFile(item: BdpanListItem, index: number): RemoteFile {
   return {
     id: String(item.fs_id ?? `${index + 1}`),
     name,
-    path: item.path ?? name,
+    path: normalizeCommandPath(item.path ?? name),
     size: item.size ?? 0,
     isDirectory: Boolean(item.isdir),
     category: typeof item.category === "string" ? item.category : undefined
   };
+}
+
+function normalizeCommandPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const prefixes = ["apps/bdpan/", "apps/", "我的应用数据/bdpan/", "我的应用数据/"];
+  const prefix = prefixes.find((item) => normalized.startsWith(item));
+  return prefix ? normalized.slice(prefix.length) : normalized;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

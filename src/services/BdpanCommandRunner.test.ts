@@ -21,11 +21,11 @@ describe("buildBdpanInvocation", () => {
       buildBdpanInvocation({
         platform: "win32",
         subcommand: "share",
-        args: ["panjie/output/task-1", "--period", "7", "--json"]
+        args: ["panjie/output/task-1", "--period", "0", "--json"]
       })
     ).toEqual({
       command: "wsl.exe",
-      args: ["--exec", "bdpan", "share", "panjie/output/task-1", "--period", "7", "--json"],
+      args: ["--exec", "bdpan", "share", "panjie/output/task-1", "--period", "0", "--json"],
       usesShell: false
     });
   });

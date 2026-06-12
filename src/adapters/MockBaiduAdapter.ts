@@ -5,20 +5,20 @@ export class MockBaiduAdapter implements StorageAdapter {
 
   async getCapabilities(): Promise<StorageCapabilities> {
     return {
-      checkLogin: "supported",
-      transferSharedLink: "supported",
-      listFiles: "supported",
-      createDirectory: "supported",
-      renameFile: "supported",
-      moveFile: "supported",
-      downloadFile: "supported",
-      uploadFile: "supported",
-      createShareLink: "supported"
+      checkLogin: "mock_only",
+      transferSharedLink: "mock_only",
+      listFiles: "mock_only",
+      createDirectory: "mock_only",
+      renameFile: "mock_only",
+      moveFile: "mock_only",
+      downloadFile: "mock_only",
+      uploadFile: "mock_only",
+      createShareLink: "mock_only"
     };
   }
 
   async checkConnection(): Promise<{ ok: boolean; displayName?: string; message: string }> {
-    return { ok: true, displayName: "Mock", message: "Mock 模式已连接" };
+    return { ok: true, displayName: "Mock", message: "Mock 演示模式，不会真实转存" };
   }
 
   async transferSharedLink(input: {
@@ -57,12 +57,23 @@ export class MockBaiduAdapter implements StorageAdapter {
   async createShareLink(input: {
     remotePaths: string[];
     periodDays: 0 | 1 | 7 | 30;
-  }): Promise<{ ok: boolean; shareUrl?: string; extractCode?: string; periodDays?: number }> {
+  }): Promise<{
+    ok: boolean;
+    source?: "mock";
+    shareUrl?: string;
+    extractCode?: string;
+    verified?: boolean;
+    redactedForLog?: string;
+    periodDays?: number;
+  }> {
     const idPart = input.remotePaths.join("-").replaceAll("/", "-").slice(0, 8) || "empty";
     return {
       ok: true,
+      source: "mock",
       shareUrl: `https://pan.baidu.com/s/mock-${idPart}`,
       extractCode: "A7K9",
+      verified: false,
+      redactedForLog: "<mock-share-url>",
       periodDays: input.periodDays
     };
   }
