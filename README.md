@@ -1,76 +1,205 @@
-# 盘姬批量助手
+# 盘姬 · 批量助手
 
-Windows 本地百度网盘批量处理客户端 MVP。当前主线是 Electron 桌面壳 + React UI + Windows 本地 CLI 适配，优先使用 BaiduPCS-Go 完成自用场景的文件操作。
+一个面向 Windows 的百度网盘资源批量处理桌面客户端。当前 MVP 目标很明确：**粘贴别人发来的百度网盘分享文本，原样转存到自己的网盘资源库，识别这份资源属于什么内容，再生成永久有效的新分享链接和可转发文案**。
 
-## 默认流程
+> 当前项目偏自用工具，不做浏览器 Cookie 抓取、不做隐藏接口、不伪造真实转存或分享结果。
 
-默认是快速转存模式：
+![盘姬桌面首页](docs/images/readme/home.png)
+
+## 现在能做什么
+
+- **原样转存**：默认不改文件名、不拆目录、不移动内部文件结构。
+- **资源级分类**：分类的是“这份资源是什么”，不是把网盘里的文件强行分文件夹。
+- **中文保存路径**：正式任务默认保存到 `/盘姬资源库/转存记录/<日期>/<任务名>`。
+- **永久分享**：创建新分享链接时默认使用永久有效期。
+- **可转发文案**：自动生成标题、分类、内容摘要、链接、提取码、永久有效说明。
+- **按需检查**：水印、二维码、OCR、联系方式、引流内容检查默认关闭，用户主动选择后才进入检查流程。
+- **Windows 本地 CLI**：通过内置/本地 BaiduPCS-Go 执行真实网盘操作，React 前端不直接运行系统命令。
+
+## 核心流程
 
 ```text
-输入分享链接和提取码 -> 转存 -> 读取文件列表 -> 自动分类 -> 重命名 -> 移动 -> 创建新分享 -> 导出结果
+粘贴分享文本
+  -> 识别链接和提取码
+  -> 原样转存到 /盘姬资源库/转存记录/<日期>/<任务名>
+  -> 读取转存后的文件列表
+  -> 判断资源内容分类
+  -> 创建永久新分享链接
+  -> 生成可转发中文文案
 ```
 
-快速模式不会下载文件样本，不初始化 OCR，不检查模型，不视频抽帧，不做水印处理。
+默认发货文案格式：
 
-## Windows 本地 CLI
-
-- 默认接入：Windows 本地 CLI 模式。
-- 当前 CLI 后端：BaiduPCS-Go v4.0.1。
-- 本地真实操作限制在 `盘姬测试/` 目录下。
-- React 前端不直接执行 CLI；真实命令必须走 Electron main / 本地 service / bridge。
-- `tools/baidu-cli/` 是本机运行目录，已加入 `.gitignore`，不会提交 exe。
-- `release/` 是打包输出目录，最终客户端优先看 portable exe 或 setup exe。
-
-## 按需扫描
-
-扫描/OCR/水印/引流检测默认关闭。用户勾选后才启用：
-
-- 检查二维码：启用 OpenCV QR 检测，不需要模型。
-- OCR 检查文字：需要 OCR 模型，由模型管理器检查和安装。
-- 检查联系方式：手机号、邮箱、微信号、QQ 号。
-- 检查引流内容：URL、扫码、加微信、进群、公众号等。
-- 检查水印：当前 MVP 标记风险，复杂水印不伪造清理成功。
-- 生成清理副本：只输出副本，不覆盖原始文件。
-- 深度扫描：启用更慢的图片/PDF/视频抽样，视频扫描才检查 ffmpeg。
-
-清理副本输出到 `artifacts/cleaned/<taskId>/` 或后续网盘 `盘姬测试/cleaned/<taskId>/`，不删除、不覆盖 raw 文件。
-
-## 桌面打包
-
-```powershell
-npm run package:win
+```text
+【{资源标题}】
+分类：{内容分类}
+内容：{内容摘要}
+网盘链接：{shareUrl}
+提取码：{extractCode}
+有效期：永久有效
 ```
 
-打包输出：
+## 界面预览
 
-- `release/*portable*.exe`：免安装版本。
-- `release/*Setup*.exe`：NSIS 安装器。
+### 批量处理
 
-当前未做代码签名，Windows SmartScreen 可能提示未知发布者。
+粘贴分享文本后，页面会显示链接统计、当前接入状态、内容分类、检查状态和保存路径。
 
-## 常用命令
+![批量处理页](docs/images/readme/batch.png)
+
+### 任务结果
+
+任务完成后会显示资源标题、内容分类、内容摘要、保存路径、分享链接状态和可转发文案。Mock 链接会明确标记为不可真实访问。
+
+![任务结果弹窗](docs/images/readme/result.png)
+
+### 设置中心
+
+普通用户默认只看到百度网盘连接、登录态导入和重新检测；高级调试信息默认折叠。
+
+![设置中心](docs/images/readme/settings.png)
+
+## 当前接入方式
+
+| 项目 | 当前状态 |
+| --- | --- |
+| 桌面壳 | Electron + React |
+| 默认平台 | Windows |
+| 网盘 CLI | BaiduPCS-Go v4.0.1 |
+| CLI 来源 | 优先应用内置资源，其次用户选择/PATH |
+| 默认真实目录 | `/盘姬资源库/转存记录/<日期>/<任务名>` |
+| smoke 测试目录 | `/盘姬测试/` |
+| 分享有效期 | 永久 |
+| 深度扫描 | 按需启用 |
+
+## 本地运行
 
 ```powershell
 npm install
-npm run assets:generate
+npm run build
+npm run e2e
+```
+
+开发模式：
+
+```powershell
+npm run dev
+```
+
+桌面运行：
+
+```powershell
+npm run desktop:dev
+```
+
+## Windows 打包
+
+打包前需要本机已有 ignored 的 BaiduPCS-Go 资源：
+
+```powershell
+npm run prepare:embedded-cli
+npm run package:win
+```
+
+常见输出：
+
+- `release/win-unpacked/盘姬批量助手.exe`
+- `release/盘姬批量助手 0.1.0.exe`
+- `release/盘姬批量助手 Setup 0.1.0.exe`
+
+如果完整 portable / installer 阶段卡住，可以先验证 unpacked 版本：
+
+```powershell
+$env:PANJIE_DESKTOP_EXE="D:\项目\百度网盘cli\release\win-unpacked\盘姬批量助手.exe"
+npm run smoke:desktop
+Remove-Item Env:PANJIE_DESKTOP_EXE
+```
+
+## 真实 CLI 验证
+
+基础诊断：
+
+```powershell
+npm run smoke:local-cli
+```
+
+从 UI 草稿里的真实分享文本跑转存 smoke：
+
+```powershell
+npm run smoke:local-cli -- --transfer-from-ui-draft
+```
+
+创建真实永久分享 smoke：
+
+```powershell
+npm run smoke:share-real
+```
+
+所有 smoke 报告必须脱敏：不写真实分享链接、不写提取码、不写账号凭据。
+
+## 常用验证命令
+
+```powershell
 npm test
 npm run build
 npm run security:scan
 npm run e2e
 npm run smoke:local-cli
-npm run package:win
+npm run smoke:share-real
+npm run smoke:desktop
 ```
+
+当前验证基线：
+
+- `npm test`：44 files / 138 tests
+- `npm run e2e`：16 tests
+- `smoke:local-cli -- --transfer-from-ui-draft`：pass
+- `smoke:share-real`：pass
+- `smoke:desktop`：pass
 
 ## 安全边界
 
-- 不读取 Chrome cookie、CK、BDUSS、STOKEN。
-- 不读取浏览器 User Data、`localStorage`、`sessionStorage`。
-- 不抓 Network、不导出 HAR、不使用隐藏接口。
-- 不把真实账号、真实分享链接、提取码、授权材料写入日志、docs、git 或截图。
-- 如果 CLI 需要人工登录，只记录 `manual_auth_required`，不自动提取浏览器凭据。
+项目明确禁止：
+
+- 自动读取 Chrome Cookie、CK、BDUSS、STOKEN。
+- 读取浏览器 User Data、`localStorage`、`sessionStorage`。
+- 抓 Network、导出 HAR、调用隐藏接口。
+- 把真实账号、真实分享链接、提取码、授权材料写入日志、docs、git 或截图。
+- 删除网盘文件。
+
+允许的登录方式：
+
+- 用户自己在网页登录百度网盘。
+- 用户按教程手动复制必要登录材料并导入。
+- BaiduPCS-Go 使用自己的本地登录态。
 
 ## 当前限制
 
-- BaiduPCS-Go 的 `ls/mkdir/upload/rename/mv/share` 已完成真实 smoke。
-- `transfer` 命令存在，但本机自造分享未能解析为可复用测试链接；没有用户自有测试分享时报告为 `blocked_missing_test_share`。
-- OCR/QR/PDF/视频扫描 worker 目前是 MVP 骨架；真实模型安装和深度水印处理留到后续阶段。
+- 这是 Windows 自用 MVP，不是面向公开分发的正式商业产品。
+- BaiduPCS-Go 的分享/转存能力会受账号状态、风控、会员/接口能力影响；失败时 UI 必须显示真实失败原因，不能显示假链接。
+- OCR、二维码、水印、视频抽帧和清理副本仍是按需扫描方向，默认流程不会执行。
+- `tools/baidu-cli/`、`release/`、`artifacts/` 都是本地运行/构建产物，不提交真实 exe、日志或截图临时文件。
+
+## 项目结构
+
+```text
+src/
+  adapters/      # 百度网盘适配层：Mock、BaiduPCS-Go、本地 CLI 抽象
+  services/      # 原样转存、资源分类、分享文案、路径、安全扫描等服务
+  state/         # 任务状态、批量输入草稿、接入模式状态
+  pages/         # 任务工作台、批量处理、扫描检查、资源归档、分享导出、设置中心
+  components/    # AppShell、标题栏、批量处理组件、通用 UI
+scripts/         # smoke、打包准备、安全扫描、桥接脚本
+docs/            # 决策文档、smoke 报告、README 图片
+tests/           # Playwright E2E 和 fake CLI fixture
+```
+
+## GitHub 展示图更新
+
+README 图片位于：
+
+```text
+docs/images/readme/
+```
+
+这些图片来自本地 Playwright / desktop smoke 的脱敏截图。更新截图前先确认不包含真实分享链接、提取码、账号信息或登录材料。
