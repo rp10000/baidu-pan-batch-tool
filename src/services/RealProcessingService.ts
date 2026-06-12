@@ -120,7 +120,7 @@ export class RealProcessingService implements ProcessingService {
       }
       const share = await this.adapter.createShareLink({
         remotePaths: [task.outputDirectory ?? `${PANJIE_ROOT}/output/${task.id}`],
-        periodDays: 7
+        periodDays: 0
       });
       if (share.ok) {
         task.shareResult = {

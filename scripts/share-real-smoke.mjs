@@ -41,7 +41,7 @@ run(["mkdir", testRoot]);
 run(["mkdir", remoteDir]);
 run(["upload", localHello, `${remoteDir}/hello.txt`]);
 
-const share = run(["share", "set", "--period", "7", "-f", remoteDir]);
+const share = run(["share", "set", "--period", "0", "-f", remoteDir]);
 const shareOutput = `${share.stdout}\n${share.stderr}`;
 const parsed = parseShareOutput(shareOutput);
 const valid = validateShare(parsed);

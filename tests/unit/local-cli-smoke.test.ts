@@ -63,7 +63,7 @@ describe("local cli smoke service", () => {
   it("reports unsupported transfer and share without fake success", async () => {
     const adapter = new BaiduPcsGoAdapter(new FakeLocalCliRunner("unsupported"));
     const transfer = await adapter.transferSharedLink({ url: "https://example.invalid/share", extractCode: "0000", targetDirectory: "盘姬测试" });
-    const share = await adapter.createShareLink({ remotePaths: ["盘姬测试/file.txt"], periodDays: 7 });
+    const share = await adapter.createShareLink({ remotePaths: ["盘姬测试/file.txt"], periodDays: 0 });
 
     expect(transfer.ok).toBe(false);
     expect(transfer.error).toContain("不支持");

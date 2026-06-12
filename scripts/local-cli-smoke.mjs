@@ -184,7 +184,7 @@ function where(command) {
 }
 
 function runShareCheck(cliPath, remotePath) {
-  const result = runCli(cliPath, ["share", "set", "--period", "7", "-f", remotePath], 120000);
+  const result = runCli(cliPath, ["share", "set", "--period", "0", "-f", remotePath], 120000);
   const failed = isFailedResult(result);
   const share = failed ? undefined : extractShareData(outputOf(result));
 

@@ -26,7 +26,7 @@ describe("BaiduPcsGoAdapter share parsing", () => {
       stderr: ""
     }));
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/ok"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/ok"], periodDays: 0 });
 
     expect(result).toMatchObject({
       ok: true,
@@ -44,7 +44,7 @@ describe("BaiduPcsGoAdapter share parsing", () => {
       stderr: ""
     }));
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/help"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/help"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("未解析到真实分享链接");
@@ -57,7 +57,7 @@ describe("BaiduPcsGoAdapter share parsing", () => {
       stderr: ""
     }));
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/fail"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/fail"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("百度服务端拒绝创建分享");

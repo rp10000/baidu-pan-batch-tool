@@ -65,7 +65,7 @@ export async function runLocalCliSmoke(
     checks.push({ name: "transfer", status: "skipped_missing_test_share", message: "缺少用户自有测试分享链接" });
   }
 
-  await pushCheck(checks, "share", adapter.createShareLink({ remotePaths: [smokeDir], periodDays: 7 }));
+  await pushCheck(checks, "share", adapter.createShareLink({ remotePaths: [smokeDir], periodDays: 0 }));
 
   const hasFailure = checks.some((check) => check.status === "fail");
   return {

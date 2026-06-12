@@ -168,7 +168,7 @@ export class OriginalTransferService implements ProcessingService {
   }
 
   private async createShareResult(remotePath: string): Promise<ShareResult> {
-    const share = await this.adapter.createShareLink({ remotePaths: [remotePath], periodDays: 7 });
+    const share = await this.adapter.createShareLink({ remotePaths: [remotePath], periodDays: 0 });
     if (!share.ok || !share.shareUrl) {
       throw new Error(share.error ?? "创建分享链接失败");
     }

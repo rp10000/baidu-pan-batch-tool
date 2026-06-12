@@ -136,7 +136,7 @@ export async function runSmoke() {
       checks.push(runBdpanCheck("rename", `bdpan rename ${quote(firstPath)} ${quote("测试分类_001.txt")} --json`));
       checks.push(runBdpanCheck("mv", `bdpan mv ${quote(renamed)} ${quote(`${outDir}/测试分类`)} --json`));
       checks.push(runBdpanCheck("ls output", `bdpan ls ${quote(`${outDir}/测试分类`)} --json`));
-      const share = runWsl(`bdpan share ${quote(outDir)} --period 7 --json`);
+      const share = runWsl(`bdpan share ${quote(outDir)} --period 0 --json`);
       checks.push({ name: "share", status: share.ok ? "pass" : classifyShareFailure(share.message), message: share.message });
     } else {
       checks.push({ name: "rename", status: "skipped", message: "No transferred file path found." });

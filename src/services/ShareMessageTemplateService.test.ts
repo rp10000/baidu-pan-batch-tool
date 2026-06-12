@@ -18,7 +18,7 @@ describe("ShareMessageTemplateService", () => {
     expect(message).toContain("【课程资料包】");
     expect(message).toContain("网盘链接：https://pan.baidu.com/s/1real?pwd=9abc");
     expect(message).toContain("提取码：9abc");
-    expect(message).toContain("请尽快保存到自己的网盘");
+    expect(message).toContain("链接有效期为永久");
   });
 
   it("renders custom templates with supported placeholders", () => {
@@ -44,4 +44,3 @@ describe("ShareMessageTemplateService", () => {
     expect(message).toBe("盘姬小店 P001 素材 5 https://pan.baidu.com/s/1real?pwd=8q2m 8q2m 售后补发");
   });
 });
-

@@ -27,7 +27,7 @@ const TEMPLATES: Record<Exclude<ShareTemplateType, "custom">, string> = {
 提取码：{extractCode}
 
 温馨提示：
-请尽快保存到自己的网盘，避免链接过期。`,
+链接有效期为永久。建议保存到自己的网盘，方便后续查看。`,
   wechat_simple: `{title}
 链接：{shareUrl}
 提取码：{extractCode}`,
@@ -67,7 +67,7 @@ function createTemplateValues(input: ShareMessageInput, shareResult: ShareResult
     title: input.template.title.trim() || "资料包",
     shareUrl: shareResult.shareUrl,
     extractCode: shareResult.extractCode || "无",
-    expireText: shareResult.expireAt ? `有效期：${shareResult.expireAt}` : "请尽快保存到自己的网盘，避免链接过期。",
+    expireText: `有效期：${shareResult.expireAt && shareResult.expireAt !== "0" ? shareResult.expireAt : "永久有效"}`,
     fileCount: String(fileCount),
     date,
     note: input.template.note?.trim() || "",
@@ -75,4 +75,3 @@ function createTemplateValues(input: ShareMessageInput, shareResult: ShareResult
     orderNo: input.template.orderNo?.trim() || ""
   };
 }
-

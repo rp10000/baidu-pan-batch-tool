@@ -22,9 +22,9 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     const runner = new ScenarioRunner(() => ok("分享链接: https://pan.baidu.com/s/1real?pwd=abcd\n提取码: abcd"));
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["panjie/output/task"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["panjie/output/task"], periodDays: 0 });
 
-    expect(runner.calls[0]).toEqual(["share", "set", "--period", "7", "-f", "/盘姬测试/panjie/output/task"]);
+    expect(runner.calls[0]).toEqual(["share", "set", "--period", "0", "-f", "/盘姬测试/panjie/output/task"]);
     expect(result).toMatchObject({ ok: true, shareUrl: "https://pan.baidu.com/s/1real?pwd=abcd", extractCode: "abcd" });
   });
 
@@ -32,7 +32,7 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     const runner = new ScenarioRunner(() => ok("创建分享链接失败: 创建分享链接: 遇到错误, 远端服务器返回错误, 代码: 2"));
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("百度服务端拒绝创建分享，代码 2");
@@ -42,7 +42,7 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     const runner = new ScenarioRunner(() => ok("创建分享链接失败: 目录为空"));
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/empty"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/empty"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("目录为空");
@@ -52,7 +52,7 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     const runner = new ScenarioRunner(() => ok("分享命令执行完成，但没有输出链接"));
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/no-link"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/no-link"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("未解析到真实分享链接");
@@ -67,7 +67,7 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     });
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 0 });
 
     expect(runner.calls).toContainEqual(["share", "list"]);
     expect(result).toMatchObject({ ok: true, shareUrl: "https://pan.baidu.com/s/1fromlist?pwd=wxyz", extractCode: "wxyz" });
@@ -77,7 +77,7 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     const runner = new ScenarioRunner(() => ({ exitCode: 2, stdout: "", stderr: "flag provided but not defined" }));
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 7 });
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬测试/panjie/output/task"], periodDays: 0 });
 
     expect(result.ok).toBe(false);
     expect(result.error).toContain("flag provided");

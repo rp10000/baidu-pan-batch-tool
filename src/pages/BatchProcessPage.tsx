@@ -193,7 +193,7 @@ export function BatchProcessPage({
     }
     setRunning(true);
     const adapter = storage.getActiveAdapter();
-    const share = await adapter.createShareLink({ remotePaths: [directory], periodDays: 7 });
+    const share = await adapter.createShareLink({ remotePaths: [directory], periodDays: 0 });
     if (share.ok && share.shareUrl) {
       const shareResult = {
         source: share.source ?? "manual",

@@ -26,9 +26,9 @@ describe("BaiduPcsGoAdapter path normalization", () => {
     const runner = new RecordingRunner();
     const adapter = new BaiduPcsGoAdapter(runner);
 
-    await adapter.createShareLink({ remotePaths: ["panjie/output/x"], periodDays: 7 });
+    await adapter.createShareLink({ remotePaths: ["panjie/output/x"], periodDays: 0 });
 
-    expect(runner.calls.at(-1)).toEqual(["share", "set", "--period", "7", "-f", "/盘姬测试/panjie/output/x"]);
+    expect(runner.calls.at(-1)).toEqual(["share", "set", "--period", "0", "-f", "/盘姬测试/panjie/output/x"]);
   });
 
   it("passes absolute paths to move and rename", async () => {
