@@ -6,6 +6,7 @@ import { assertCliAbsolutePath, toCliAbsolutePath, toDisplayPath } from "../serv
 import { classifyShareFailure, hasCliBusinessError } from "../services/ShareFailureClassifier";
 import { verifyShareResult } from "../services/ShareVerificationService";
 import { buildLocalCliRuntimeSnapshot } from "../services/LocalCliRuntimeService";
+import { ensureRemoteDir } from "../services/RemoteDirectoryService";
 
 interface GenericBaiduCliProfile {
   name: string;
@@ -127,9 +128,12 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
       return { ok: false, error: "当前 CLI 不支持分享链接转存" };
     }
     const targetDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.targetDirectory));
-    const mkdir = await this.runner.run({ args: this.profile.commands.mkdir(targetDirectory), timeoutMs: 30000 });
-    if (isFailedResult(mkdir)) {
-      return { ok: false, error: normalizeCliError(mkdir.stderr || mkdir.stdout) };
+    const ensured = await ensureRemoteDir(targetDirectory, {
+      list: (path) => this.probeRemoteDirectory(path),
+      mkdir: (path) => this.mkdirRemoteDirectory(path)
+    });
+    if (!ensured.ok) {
+      return { ok: false, error: ensured.error ?? "mkdir_failed" };
     }
 
     const cd = await this.runner.run({ args: this.profile.commands.cd(targetDirectory), timeoutMs: 30000 });
@@ -139,9 +143,25 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
 
     try {
       const result = await this.runner.run({ args: this.profile.commands.transfer(input.url, input.extractCode), timeoutMs: 120000 });
-      return !isFailedResult(result)
-        ? { ok: true, remotePath: toDisplayPath(targetDirectory), raw: redactCliOutput(result.stdout) }
-        : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+      if (isFailedResult(result)) {
+        return { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+      }
+
+      const transferredFiles = await this.probeRemoteDirectory(targetDirectory);
+      if (!transferredFiles.ok) {
+        return { ok: false, error: normalizeCliError(transferredFiles.error ?? "transfer_list_failed") };
+      }
+      const fileCount = transferredFiles.entries?.length ?? 0;
+      if (fileCount <= 0) {
+        return { ok: false, error: "transfer_empty" };
+      }
+
+      return {
+        ok: true,
+        remotePath: toDisplayPath(targetDirectory),
+        fileCount,
+        raw: redactCliOutput(result.stdout)
+      };
     } finally {
       await this.runner.run({ args: this.profile.commands.cd("/"), timeoutMs: 30000 });
     }
@@ -149,14 +169,17 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
 
   async listFiles(input: { remoteDirectory: string }): Promise<RemoteFile[]> {
     const remoteDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.remoteDirectory));
-    const result = await this.runner.run({ args: this.profile.commands.ls(remoteDirectory), timeoutMs: 30000 });
-    if (isFailedResult(result)) return [];
-    return parsePlainFileList(result.stdout, toDisplayPath(remoteDirectory));
+    const result = await this.probeRemoteDirectory(remoteDirectory);
+    return result.ok ? result.entries ?? [] : [];
   }
 
   async mkdir(input: { remoteDirectory: string }): Promise<{ ok: boolean; error?: string }> {
     const remoteDirectory = assertCliAbsolutePath(toCliAbsolutePath(input.remoteDirectory));
-    return this.okResult(await this.runner.run({ args: this.profile.commands.mkdir(remoteDirectory), timeoutMs: 30000 }));
+    const ensured = await ensureRemoteDir(remoteDirectory, {
+      list: (path) => this.probeRemoteDirectory(path),
+      mkdir: (path) => this.mkdirRemoteDirectory(path)
+    });
+    return ensured.ok ? { ok: true } : { ok: false, error: ensured.error };
   }
 
   async renameFile(input: { remotePath: string; newName: string }): Promise<{ ok: boolean; error?: string }> {
@@ -226,6 +249,25 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
 
   private okResult(result: { exitCode: number; stdout: string; stderr: string }) {
     return !isFailedResult(result) ? { ok: true } : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+  }
+
+  private async probeRemoteDirectory(remoteDirectory: string) {
+    const result = await this.runner.run({ args: this.profile.commands.ls(remoteDirectory), timeoutMs: 30000 });
+    if (isFailedResult(result)) {
+      return { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
+    }
+    return {
+      ok: true,
+      kind: "directory" as const,
+      entries: parsePlainFileList(result.stdout, toDisplayPath(remoteDirectory))
+    };
+  }
+
+  private async mkdirRemoteDirectory(remoteDirectory: string) {
+    const result = await this.runner.run({ args: this.profile.commands.mkdir(remoteDirectory), timeoutMs: 30000 });
+    return !isFailedResult(result)
+      ? { ok: true }
+      : { ok: false, error: normalizeCliError(result.stderr || result.stdout) };
   }
 }
 

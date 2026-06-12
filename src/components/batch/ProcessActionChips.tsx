@@ -30,6 +30,7 @@ export function ProcessActionChips({
   onScanModeChange: (mode: ScanMode) => void;
   onScanToggle: (key: keyof ScanOptions) => void;
 }) {
+  const showScanOptions = options.transferMode === "scan_clean";
   return (
     <Card title="处理模式与扫描选项" action={<Tag tone={options.transferMode === "original" ? "green" : options.transferMode === "archive" ? "blue" : "orange"}>{modeTag(options.transferMode)}</Tag>}>
       <div className="mode-grid processing-mode-grid">
@@ -58,6 +59,7 @@ export function ProcessActionChips({
           <span>可选：原样转存后再按需检查 OCR、二维码、水印和引流内容。</span>
         </button>
       </div>
+      {showScanOptions ? (
       <div className="scan-option-grid">
         {scanItems.map((item) => {
           const checked = Boolean(options.scanOptions[item.key]);
@@ -74,6 +76,7 @@ export function ProcessActionChips({
           );
         })}
       </div>
+      ) : null}
       <div className="chip-list">
         {actionItems.map((action) => (
           <button

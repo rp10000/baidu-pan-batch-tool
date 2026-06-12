@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +30,7 @@ const candidates = [
 export function runLocalCliSmoke(argv = process.argv.slice(2)) {
   const requestedRelogin = argv.includes("--relogin");
   const confirmedRelogin = argv.includes("--confirm-relogin");
+  const requestedTransferFromUiDraft = argv.includes("--transfer-from-ui-draft");
   const detected = discoverCli();
   const checks = [];
   let status = "diagnostic";
@@ -142,6 +143,7 @@ export function runLocalCliSmoke(argv = process.argv.slice(2)) {
       cliPath: detected.path,
       supportsTransfer,
       transferDir,
+      uiDraftShare: requestedTransferFromUiDraft ? readUiDraftShare() : undefined,
       inMemoryShare: shareCheck.share
     })
   );
@@ -196,7 +198,7 @@ function runShareCheck(cliPath, remotePath) {
   };
 }
 
-function runTransferCheck({ cliPath, supportsTransfer, transferDir, inMemoryShare }) {
+function runTransferCheck({ cliPath, supportsTransfer, transferDir, uiDraftShare, inMemoryShare }) {
   if (!supportsTransfer) {
     return { name: "transfer", status: "fail", message: "unsupported" };
   }
@@ -204,15 +206,15 @@ function runTransferCheck({ cliPath, supportsTransfer, transferDir, inMemoryShar
   const envShare = process.env.TEST_SHARE_URL
     ? { url: process.env.TEST_SHARE_URL, extractCode: process.env.TEST_SHARE_EXTRACT_CODE || process.env.TEST_SHARE_PWD || "" }
     : undefined;
-  const share = envShare ?? inMemoryShare;
+  const share = envShare ?? uiDraftShare ?? inMemoryShare;
 
   if (!share?.url) {
-    return { name: "transfer", status: "blocked_missing_test_share", message: "no env test share and generated share was not parseable" };
+    return { name: "transfer", status: "blocked_missing_test_share", message: "no env/ui draft test share and generated share was not parseable" };
   }
 
-  const mkdir = runCli(cliPath, ["mkdir", transferDir], 60000);
-  if (isFailedResult(mkdir)) {
-    return { name: "transfer", status: "fail", message: `mkdir target failed: ${classifyCliError(outputOf(mkdir))}` };
+  const ensured = ensureRemoteDir(cliPath, transferDir);
+  if (!ensured.ok) {
+    return { name: "transfer", status: "fail", message: `mkdir target failed: ${ensured.message}` };
   }
 
   const cd = runCli(cliPath, ["cd", transferDir], 60000);
@@ -234,8 +236,30 @@ function runTransferCheck({ cliPath, supportsTransfer, transferDir, inMemoryShar
   return {
     name: "transfer",
     status: isFailedResult(ls) ? "fail" : "pass",
-    message: isFailedResult(ls) ? classifyCliError(outputOf(ls)) : envShare ? "env_test_share_passed" : "in_memory_self_share_passed"
+    message: isFailedResult(ls)
+      ? classifyCliError(outputOf(ls))
+      : envShare
+        ? "env_test_share_passed"
+        : uiDraftShare
+          ? "ui_draft_share_passed"
+          : "in_memory_self_share_passed"
   };
+}
+
+function ensureRemoteDir(cliPath, remoteDir) {
+  const before = runCli(cliPath, ["ls", remoteDir], 60000);
+  if (!isFailedResult(before)) return { ok: true, status: "already_exists" };
+
+  const mkdir = runCli(cliPath, ["mkdir", remoteDir], 60000);
+  if (!isFailedResult(mkdir)) return { ok: true, status: "created" };
+  if (!/31061|exists|文件已存在|目录已存在/i.test(outputOf(mkdir))) {
+    return { ok: false, message: classifyCliError(outputOf(mkdir)) };
+  }
+
+  const after = runCli(cliPath, ["ls", remoteDir], 60000);
+  return isFailedResult(after)
+    ? { ok: false, message: classifyCliError(outputOf(after)) }
+    : { ok: true, status: "already_exists" };
 }
 
 function runCliCheck(cliPath, name, args) {
@@ -371,6 +395,38 @@ function extractShareData(value) {
   const extractCode =
     text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：]?\s*([A-Za-z0-9]{4,})/i)?.[1] ??
     url.match(/[?&]pwd=([A-Za-z0-9]{4,})/i)?.[1] ??
+    "";
+  return { url, extractCode };
+}
+
+function readUiDraftShare() {
+  const appData = process.env.APPDATA;
+  if (!appData) return undefined;
+  const draftPath = resolve(appData, "baidu-pan-batch-tool", "draft.local.json");
+  if (!existsSync(draftPath)) return undefined;
+  const raw = readFileSync(draftPath, "utf8");
+  const rawInput = extractJsonStringField(raw, "rawInput");
+  return extractShareFromText(rawInput);
+}
+
+function extractJsonStringField(jsonText, fieldName) {
+  const escapedField = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(jsonText || "").match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "s"));
+  if (!match) return "";
+  try {
+    return JSON.parse(`"${match[1]}"`);
+  } catch {
+    return match[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+}
+
+function extractShareFromText(value) {
+  const text = String(value || "");
+  const url = text.match(/https?:\/\/pan\.baidu\.com\/s\/[^\s，,。；;）)'"<>]+/i)?.[0]?.replace(/[。；;，,）)]+$/u, "");
+  if (!url) return undefined;
+  const extractCode =
+    url.match(/[?&]pwd=([A-Za-z0-9]{4,})/i)?.[1] ??
+    text.match(/(?:提取码|提取密码|密码|pwd|code)\s*[:：]?\s*([A-Za-z0-9]{4,})/i)?.[1] ??
     "";
   return { url, extractCode };
 }

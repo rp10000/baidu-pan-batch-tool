@@ -85,4 +85,26 @@ describe("batchDraftStore", () => {
     expect(hydrated.shareTemplate.type).toBe("xiaohongshu_virtual");
     expect(optionsFromBatchDraft(hydrated).shareTemplate.title).toBe("资料包");
   });
+
+  it("migrates old original-mode drafts back to no-scan defaults", () => {
+    const hydrated = batchDraftReducer(createInitialBatchDraftState(), {
+      type: "hydrate",
+      state: {
+        batchDraftVersion: 1,
+        transferMode: "original",
+        scanWatermark: true,
+        scanTrafficContent: true,
+        autoRemoveWatermark: true,
+        removeTrafficFields: true
+      }
+    });
+
+    expect(hydrated.batchDraftVersion).toBe(2);
+    expect(hydrated.transferMode).toBe("original");
+    expect(hydrated.scanWatermark).toBe(false);
+    expect(hydrated.scanTrafficContent).toBe(false);
+    expect(hydrated.autoRemoveWatermark).toBe(false);
+    expect(hydrated.removeTrafficFields).toBe(false);
+    expect(hydrated.scanOptions.enabled).toBe(false);
+  });
 });

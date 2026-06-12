@@ -66,12 +66,41 @@ function authMetaPath() {
 }
 
 function readDraft() {
+  const filePath = draftPath();
   try {
-    const filePath = draftPath();
     if (!fs.existsSync(filePath)) return undefined;
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
   } catch {
+    return recoverDraft(filePath);
+  }
+}
+
+function recoverDraft(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return undefined;
+    const text = fs.readFileSync(filePath, "utf8");
+    const rawInput = extractJsonStringField(text, "rawInput");
+    if (!rawInput) return undefined;
+    return {
+      rawInput,
+      hasUserEdited: true,
+      selectedMode: /"selectedMode"\s*:\s*"single"/.test(text) ? "single" : "batch",
+      transferMode: "original",
+      persistDraft: true
+    };
+  } catch {
     return undefined;
+  }
+}
+
+function extractJsonStringField(text, fieldName) {
+  const escapedField = fieldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(text || "").match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "s"));
+  if (!match) return "";
+  try {
+    return JSON.parse(`"${match[1]}"`);
+  } catch {
+    return match[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
 }
 

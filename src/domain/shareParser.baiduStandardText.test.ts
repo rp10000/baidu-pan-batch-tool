@@ -5,15 +5,14 @@ describe("parseShareLinks Baidu standard text", () => {
   it("extracts one link and pwd code from a standard Baidu share paragraph", () => {
     const inputs = parseShareLinks(`
 通过网盘分享的文件：
-链接: https://pan.baidu.com/s/1GosxMsrCpZrAo85ZcYIRCQ?pwd=d6ea 提取码: d6ea 复制这段内容后打开百度网盘手机App，操作更方便哦
---来自百度网盘超级会员v9的分享
-`);
+链接: https://pan.baidu.com/s/1syntheticStandardText?pwd=z9x8 提取码: z9x8 复制这段内容后打开百度网盘手机App，操作更方便哦
+--来自百度网盘超级会员v9的分享`);
 
     expect(inputs).toHaveLength(1);
     expect(inputs[0]).toMatchObject({
-      url: "https://pan.baidu.com/s/1GosxMsrCpZrAo85ZcYIRCQ?pwd=d6ea",
-      extractCode: "d6ea",
-      explicitExtractCode: "d6ea",
+      url: "https://pan.baidu.com/s/1syntheticStandardText?pwd=z9x8",
+      extractCode: "z9x8",
+      explicitExtractCode: "z9x8",
       codeConflict: false,
       valid: true,
       duplicate: false
@@ -40,13 +39,12 @@ pan.baidu.com/s/1bareLink?pwd=8q2m
   });
 
   it("prefers pwd when explicit extraction code conflicts", () => {
-    const inputs = parseShareLinks("链接: https://pan.baidu.com/s/1abc?pwd=d6ea 提取码: 1234");
+    const inputs = parseShareLinks("链接: https://pan.baidu.com/s/1abc?pwd=z9x8 提取码: 1234");
 
     expect(inputs[0]).toMatchObject({
-      extractCode: "d6ea",
+      extractCode: "z9x8",
       explicitExtractCode: "1234",
       codeConflict: true
     });
   });
 });
-

@@ -84,9 +84,15 @@ export class OriginalTransferService implements ProcessingService {
       if (!transfer.ok) {
         throw new Error(transfer.error ?? "转存失败");
       }
+      if (transfer.fileCount !== undefined && transfer.fileCount <= 0) {
+        throw new Error("转存完成后目录为空，未读取到文件");
+      }
     }
 
     const files = await this.adapter.listFiles({ remoteDirectory: rawPath });
+    if (files.length <= 0) {
+      throw new Error("转存完成后目录为空，未读取到文件");
+    }
     const item: ProcessingTaskItem = {
       id: `item-${(task.taskItems?.length ?? 0) + 1}`,
       inputId: inputs.map((input) => input.id).join(","),

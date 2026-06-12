@@ -51,19 +51,20 @@ describe("BaiduPcsGoAdapter path normalization", () => {
     await adapter.uploadFile({ localPath: "artifacts/local-smoke/hello.txt", remotePath: "panjie/output/x/hello.txt" });
 
     expect(runner.calls[0]).toEqual(["ls", "/盘姬测试/panjie/raw/x"]);
-    expect(runner.calls[1]).toEqual(["mkdir", "/盘姬测试/panjie/output/x"]);
+    expect(runner.calls[1]).toEqual(["ls", "/盘姬测试/panjie/output/x"]);
     expect(runner.calls[2]).toEqual(["upload", "artifacts/local-smoke/hello.txt", "/盘姬测试/panjie/output/x/hello.txt"]);
   });
 
-  it("cds to an absolute target path before transfer", async () => {
+  it("cds to an absolute target path before transfer and verifies files after transfer", async () => {
     const runner = new RecordingRunner();
     const adapter = new BaiduPcsGoAdapter(runner);
 
     await adapter.transferSharedLink({ url: "https://pan.baidu.com/s/1abc", extractCode: "9abc", targetDirectory: "panjie/raw/task-1" });
 
-    expect(runner.calls[0]).toEqual(["mkdir", "/盘姬测试/panjie/raw/task-1"]);
+    expect(runner.calls[0]).toEqual(["ls", "/盘姬测试/panjie/raw/task-1"]);
     expect(runner.calls[1]).toEqual(["cd", "/盘姬测试/panjie/raw/task-1"]);
     expect(runner.calls[2]).toEqual(["transfer", "https://pan.baidu.com/s/1abc", "9abc"]);
-    expect(runner.calls[3]).toEqual(["cd", "/"]);
+    expect(runner.calls[3]).toEqual(["ls", "/盘姬测试/panjie/raw/task-1"]);
+    expect(runner.calls[4]).toEqual(["cd", "/"]);
   });
 });

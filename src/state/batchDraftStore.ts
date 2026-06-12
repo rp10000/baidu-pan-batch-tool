@@ -6,6 +6,7 @@ import { defaultFastScanOptions } from "../domain/scanOptions";
 import type { ScanMode, ScanOptions } from "../domain/scanOptions";
 
 export interface BatchDraftState {
+  batchDraftVersion: number;
   rawInput: string;
   hasUserEdited: boolean;
   selectedMode: "single" | "batch";
@@ -54,9 +55,11 @@ interface BatchDraftStoreValue extends BatchDraftState {
 }
 
 const BatchDraftContext = createContext<BatchDraftStoreValue | undefined>(undefined);
+const BATCH_DRAFT_VERSION = 2;
 
 export function createInitialBatchDraftState(): BatchDraftState {
   return {
+    batchDraftVersion: BATCH_DRAFT_VERSION,
     rawInput: "",
     hasUserEdited: false,
     selectedMode: "batch",
@@ -90,7 +93,7 @@ export function createInitialBatchDraftState(): BatchDraftState {
 export function batchDraftReducer(state: BatchDraftState, action: BatchDraftAction): BatchDraftState {
   switch (action.type) {
     case "hydrate": {
-      const merged = { ...state, ...safePartialState(action.state) };
+      const merged = migrateHydratedDraft({ ...state, ...safePartialState(action.state) });
       if (!merged.persistDraft) {
         return touch({ ...merged, rawInput: "", hasUserEdited: false }, false);
       }
@@ -236,6 +239,7 @@ function touch(state: BatchDraftState, updateTimestamp = true): BatchDraftState 
 function safePartialState(state?: Partial<BatchDraftState>): Partial<BatchDraftState> {
   if (!state || typeof state !== "object") return {};
   const partial: Partial<BatchDraftState> = {
+    batchDraftVersion: typeof state.batchDraftVersion === "number" ? state.batchDraftVersion : undefined,
     rawInput: typeof state.rawInput === "string" ? state.rawInput : undefined,
     hasUserEdited: typeof state.hasUserEdited === "boolean" ? state.hasUserEdited : undefined,
     selectedMode: state.selectedMode === "single" ? "single" : state.selectedMode === "batch" ? "batch" : undefined,
@@ -289,6 +293,14 @@ function applyTransferMode(state: BatchDraftState, transferMode: TransferMode): 
     autoRenameFiles: true,
     targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}"
   };
+}
+
+function migrateHydratedDraft(state: BatchDraftState): BatchDraftState {
+  const migrated = { ...state, batchDraftVersion: BATCH_DRAFT_VERSION };
+  if (migrated.transferMode === "original") {
+    return applyTransferMode(migrated, "original");
+  }
+  return migrated;
 }
 
 function modeFromScan(mode: ScanMode): TransferMode {
