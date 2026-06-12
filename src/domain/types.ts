@@ -40,12 +40,33 @@ export interface ShareInput {
   rawLine: string;
   url: string;
   extractCode?: string;
+  explicitExtractCode?: string;
+  codeConflict?: boolean;
   valid: boolean;
   duplicate: boolean;
   error?: string;
 }
 
+export type TransferMode = "original" | "archive" | "scan_clean";
+export type ShareTemplateType =
+  | "baidu_standard"
+  | "xiaohongshu_virtual"
+  | "wechat_simple"
+  | "after_sale_resend"
+  | "custom";
+
+export interface ShareTemplateSettings {
+  type: ShareTemplateType;
+  title: string;
+  storeName?: string;
+  orderNo?: string;
+  note?: string;
+  customTemplate?: string;
+}
+
 export interface ProcessingOptions {
+  transferMode: TransferMode;
+  mergeLinks: boolean;
   autoClassify: boolean;
   autoTransfer: boolean;
   scanWatermark: boolean;
@@ -58,6 +79,7 @@ export interface ProcessingOptions {
   targetDirectory: string;
   scanOptions: ScanOptions;
   shareTiming: ShareTiming;
+  shareTemplate: ShareTemplateSettings;
 }
 
 export interface DetectedRisk {
@@ -91,6 +113,16 @@ export interface ShareResult {
   copied?: boolean;
 }
 
+export interface ProcessingTaskItem {
+  id: string;
+  inputId: string;
+  rawPath: string;
+  fileCount: number;
+  shareResult?: ShareResult;
+  shareError?: string;
+  messageText?: string;
+}
+
 export interface ProcessingTask {
   id: string;
   name: string;
@@ -100,12 +132,17 @@ export interface ProcessingTask {
   adapterMode?: AdapterMode;
   rawDirectory?: string;
   outputDirectory?: string;
+  finalShareDirectory?: string;
+  finalShareFileCount?: number;
   inputs: ShareInput[];
   options: ProcessingOptions;
   stages: Record<PipelineStage, PipelineStageStatus>;
   processedFiles: ProcessedFile[];
+  taskItems?: ProcessingTaskItem[];
   shareResult?: ShareResult;
   shareError?: string;
+  shareMessage?: string;
+  shareTemplateType?: ShareTemplateType;
   summary: {
     recognizedFiles: number;
     classifiedFiles: number;

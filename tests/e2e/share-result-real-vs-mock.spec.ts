@@ -59,11 +59,11 @@ test("share code 2 is partial completed and copy is disabled", async ({ page }) 
   await expect(page.getByText("已登录").first()).toBeVisible();
   await nav.getByRole("button", { name: /批量处理/ }).click();
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1partial 1234");
-  await page.getByRole("button", { name: /开始快速处理/ }).click();
+  await page.getByRole("button", { name: /开始原样转存/ }).click();
 
   const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("处理完成，分享失败");
+  await expect(dialog).toContainText("转存成功，分享失败");
   await expect(dialog).toContainText("百度服务端拒绝创建分享，代码 2");
   await expect(dialog).not.toContainText("任务完成");
   await expect(dialog.getByRole("button", { name: "重新创建分享" })).toBeVisible();

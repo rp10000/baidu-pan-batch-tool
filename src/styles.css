@@ -731,6 +731,12 @@ button:disabled {
   overflow: auto;
 }
 
+.template-textarea {
+  min-height: 108px;
+  max-height: 180px;
+  overflow: auto;
+}
+
 .input-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1270,6 +1276,36 @@ tbody tr {
 
 .share-box.failed strong {
   color: #ffb7c2;
+}
+
+.share-message-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(132, 165, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(7, 18, 37, 0.5);
+}
+
+.share-message-preview.failed {
+  border-color: rgba(255, 93, 114, 0.32);
+  background: rgba(255, 93, 114, 0.08);
+}
+
+.share-message-preview pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  color: var(--soft);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.modal-message-preview {
+  margin-bottom: 14px;
 }
 
 .modal-card {

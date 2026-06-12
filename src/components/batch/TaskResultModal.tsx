@@ -10,6 +10,7 @@ export function TaskResultModal({
   task,
   onClose,
   onCopy,
+  onCopyMessage,
   onOpenShare,
   onRetryShare,
   onOpenOutput,
@@ -23,6 +24,7 @@ export function TaskResultModal({
   task?: ProcessingTask;
   onClose: () => void;
   onCopy: () => void;
+  onCopyMessage: () => void;
   onOpenShare: () => void;
   onRetryShare: () => void;
   onOpenOutput: () => void;
@@ -36,6 +38,7 @@ export function TaskResultModal({
   const title = resultTitle(task);
   const tone = task.status === "failed" ? "failed" : task.status === "partial_completed" ? "partial" : "success";
   const canCopyShare = Boolean(task.shareResult && task.shareResult.source !== "mock" && !task.shareError);
+  const canCopyMessage = canCopyShare && Boolean(task.shareMessage);
   const hasShareFailure = Boolean(task.shareError);
 
   return (
@@ -55,20 +58,26 @@ export function TaskResultModal({
           <b>{task.rawDirectory ?? "Mock 输入目录"}</b>
         </div>
         <div>
-          <span>输出目录</span>
-          <b>{task.outputDirectory ?? task.options.targetDirectory}</b>
+          <span>最终分享目录</span>
+          <b>{task.finalShareDirectory ?? task.outputDirectory ?? task.rawDirectory ?? task.options.targetDirectory}</b>
         </div>
         <div>
           <span>扫描状态</span>
-          <b>{task.options.scanOptions.enabled ? `${task.options.scanOptions.mode} 扫描按需执行` : "扫描未启用"}</b>
+          <b>{task.options.scanOptions.enabled ? `${task.options.scanOptions.mode} 扫描按需执行` : "扫描未启用，原样转存"}</b>
         </div>
         <div>
-          <span>清理副本</span>
-          <b>{task.options.scanOptions.createCleanCopy ? "已请求生成清理副本" : "未启用"}</b>
+          <span>文件数量</span>
+          <b>{task.finalShareFileCount ?? task.summary.recognizedFiles}</b>
         </div>
       </div>
       <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} onOpen={onOpenShare} />
-      <ProcessedFileTable files={task.processedFiles} targetDirectory={task.options.targetDirectory} />
+      {task.shareMessage && !task.shareError && (
+        <div className="share-message-preview modal-message-preview">
+          <b>发送文案</b>
+          <pre>{task.shareMessage}</pre>
+        </div>
+      )}
+      <ProcessedFileTable files={task.processedFiles} targetDirectory={task.finalShareDirectory ?? task.options.targetDirectory} />
       <div className="modal-actions">
         {hasShareFailure && (
           <>
@@ -98,6 +107,9 @@ export function TaskResultModal({
         <button className="secondary-btn" type="button" onClick={onCopy} disabled={!canCopyShare}>
           复制分享信息
         </button>
+        <button className="secondary-btn" type="button" onClick={onCopyMessage} disabled={!canCopyMessage}>
+          复制发送文案
+        </button>
         <button className="primary-btn" type="button" onClick={onClose}>
           完成
         </button>
@@ -108,7 +120,8 @@ export function TaskResultModal({
 
 function resultTitle(task: ProcessingTask): string {
   if (task.shareResult?.source === "mock") return "Mock 演示完成";
-  if (task.status === "partial_completed") return "处理完成，分享失败";
-  if (task.status === "failed") return "任务失败";
+  if (task.status === "partial_completed") return "转存成功，分享失败";
+  if (task.status === "failed") return task.stages.transfer === "failed" ? "转存失败" : "任务失败";
+  if (task.options.transferMode === "original") return "原样转存完成";
   return "任务完成";
 }

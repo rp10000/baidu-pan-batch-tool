@@ -31,31 +31,31 @@ export function ProcessActionChips({
   onScanToggle: (key: keyof ScanOptions) => void;
 }) {
   return (
-    <Card title="处理模式与扫描选项" action={<Tag tone={options.scanOptions.enabled ? "orange" : "green"}>{options.scanOptions.mode === "off" ? "快速" : "按需扫描"}</Tag>}>
+    <Card title="处理模式与扫描选项" action={<Tag tone={options.transferMode === "original" ? "green" : options.transferMode === "archive" ? "blue" : "orange"}>{modeTag(options.transferMode)}</Tag>}>
       <div className="mode-grid processing-mode-grid">
         <button
-          className={`mode-card ${options.scanOptions.mode === "off" ? "active" : ""}`}
+          className={`mode-card ${options.transferMode === "original" ? "active" : ""}`}
           type="button"
           onClick={() => onScanModeChange("off")}
         >
-          <b>快速转存模式</b>
-          <span>只转存、分类、重命名、移动和创建分享，不下载样本。</span>
+          <b>原样转存</b>
+          <span>默认模式：不分类、不重命名、不扫描，转存后直接生成新链接和发送文案。</span>
         </button>
         <button
-          className={`mode-card ${options.scanOptions.mode === "standard" ? "active" : ""}`}
+          className={`mode-card ${options.transferMode === "archive" ? "active" : ""}`}
           type="button"
           onClick={() => onScanModeChange("standard")}
         >
-          <b>标准检查模式</b>
-          <span>转存后抽样检查文本、小图片、PDF 前 3 页。</span>
+          <b>归档整理</b>
+          <span>可选：转存后按文件名分类、重命名并移动到分类目录。</span>
         </button>
         <button
-          className={`mode-card ${options.scanOptions.mode === "deep" ? "active" : ""}`}
+          className={`mode-card ${options.transferMode === "scan_clean" ? "active" : ""}`}
           type="button"
           onClick={() => onScanModeChange("deep")}
         >
-          <b>深度扫描模式</b>
-          <span>会下载文件样本并运行 OCR/抽帧，耗时明显增加。</span>
+          <b>检测清理</b>
+          <span>可选：原样转存后再按需检查 OCR、二维码、水印和引流内容。</span>
         </button>
       </div>
       <div className="scan-option-grid">
@@ -87,8 +87,14 @@ export function ProcessActionChips({
         ))}
       </div>
       <p className="notice">
-        未勾选扫描时不会下载文件样本、不会初始化 OCR、不会视频抽帧；清理只生成副本，不覆盖原文件。
+        原样转存不会下载文件样本、不会初始化 OCR、不会改文件名；只有切到检测清理并勾选选项后才执行扫描。
       </p>
     </Card>
   );
+}
+
+function modeTag(mode: ProcessingOptions["transferMode"]): string {
+  if (mode === "original") return "原样转存";
+  if (mode === "archive") return "归档整理";
+  return "检测清理";
 }

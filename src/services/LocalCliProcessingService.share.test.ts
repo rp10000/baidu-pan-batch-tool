@@ -5,18 +5,21 @@ import type { ProcessingOptions } from "../domain/types";
 import { LocalCliProcessingService } from "./LocalCliProcessingService";
 
 const options: ProcessingOptions = {
-  autoClassify: true,
+  transferMode: "original",
+  mergeLinks: false,
+  autoClassify: false,
   autoTransfer: true,
   scanWatermark: false,
   scanTrafficContent: false,
   autoRemoveWatermark: false,
   removeTrafficFields: false,
   autoCreateShareCode: true,
-  autoRenameFiles: true,
+  autoRenameFiles: false,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
+  targetDirectory: "盘姬测试/panjie/raw/{taskId}",
   scanOptions: defaultFastScanOptions(),
-  shareTiming: "share_immediately"
+  shareTiming: "share_immediately",
+  shareTemplate: { type: "xiaohongshu_virtual", title: "资料包" }
 };
 
 const capabilities: StorageCapabilities = {
@@ -52,6 +55,9 @@ describe("LocalCliProcessingService share result", () => {
     });
     expect(task.shareResult?.shareUrl).not.toContain("mock");
     expect(task.shareResult?.shareUrl).not.toContain("redacted");
+    expect(task.finalShareDirectory).toContain("/raw/");
+    expect(task.summary.renamedFiles).toBe(0);
+    expect(task.shareMessage).toContain("网盘链接：https://pan.baidu.com/s/1realunit?pwd=9abc");
   });
 
   it("returns a partial task without fake share result when share creation fails after file operations", async () => {

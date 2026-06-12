@@ -1,7 +1,7 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-11T15:55:31.069Z
-status: manual_auth_required
+generatedAt: 2026-06-12T01:43:42.061Z
+status: diagnostic
 
 ## CLI
 
@@ -9,7 +9,7 @@ status: manual_auth_required
 - name: BaiduPCS-Go
 - path: <repo>\tools\baidu-cli\BaiduPCS-Go\BaiduPCS-Go-v4.0.1-windows-x64\BaiduPCS-Go.exe
 - version: BaiduPCS-Go version v4.0.1
-- loginStatus: manual_auth_required
+- loginStatus: logged_in
 - loginStateSource: BaiduPCS-Go local config, not browser credentials
 - configDir: %APPDATA%/BaiduPCS-Go
 - riskLevel: medium
@@ -31,10 +31,12 @@ status: manual_auth_required
 | version | pass | BaiduPCS-Go version v4.0.1 |
 | config | pass | local CLI config only; browser credentials were not read |
 | help | pass | login, ls, mkdir, upload, mv, transfer, share |
-| whoami | manual_auth_required | login_required |
-| mkdir | skipped | not_logged_in |
-| upload | skipped | not_logged_in |
-| rename | skipped | not_logged_in |
-| mv | skipped | not_logged_in |
-| transfer | blocked_missing_test_share | not_logged_in |
-| share | skipped | not_logged_in |
+| whoami | pass | logged_in_redacted |
+| ls | pass | ok |
+| mkdir | pass | ok |
+| upload | pass | ok |
+| rename | pass | ok |
+| mkdir category | pass | ok |
+| mv | pass | ok |
+| share | pass | generated_redacted |
+| transfer | fail | failed |

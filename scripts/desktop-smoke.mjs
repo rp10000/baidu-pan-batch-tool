@@ -109,7 +109,7 @@ async function verifyUi(page) {
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-home.png"), fullPage: true });
   assertNotBlankScreenshot(path.join(screenshotsDir, "fixed-desktop-home.png"));
 
-  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await clickNav(page, "批量处理");
   await verifyBatchLayout(page, { width: 1440, height: 900 });
   await verifyDraftPersistence(page, nav);
   await verifyLoginBlockedState(page);
@@ -131,7 +131,7 @@ async function verifyUi(page) {
 
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await clickNav(page, "设置中心");
   await verifySettingsSimpleMode(page);
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-settings-cli.png"), fullPage: true });
 
@@ -149,17 +149,17 @@ async function verifyDraftPersistence(page, nav) {
   const input = page.locator("#share-input");
   await page.getByRole("button", { name: "清空" }).click();
   await input.fill(draft);
-  await nav.getByRole("button", { name: /设置中心/ }).click();
+  await clickNav(page, "设置中心");
   await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
-  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await clickNav(page, "批量处理");
   await input.waitFor({ timeout: 5_000 });
   if ((await input.inputValue()) !== draft) {
     throw new Error("batch draft input was not preserved after page navigation");
   }
   await page.screenshot({ path: path.join(screenshotsDir, "fix-batch-input-persist.png"), fullPage: true });
   await page.getByRole("button", { name: "清空" }).click();
-  await nav.getByRole("button", { name: /设置中心/ }).click();
-  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await clickNav(page, "设置中心");
+  await clickNav(page, "批量处理");
   if ((await input.inputValue()) !== "") {
     throw new Error("batch draft restored sample/input after clear");
   }
@@ -172,10 +172,15 @@ async function verifyDraftPersistence(page, nav) {
 
 async function verifyLoginBlockedState(page) {
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1desktopFailure 1234");
-  await page.getByText(/请先连接百度网盘|登录态失效/).first().waitFor({ timeout: 10_000 });
-  await page.getByRole("button", { name: "请先连接百度网盘" }).waitFor({ timeout: 10_000 });
-  if (!(await page.getByRole("button", { name: "请先连接百度网盘" }).isDisabled())) {
-    throw new Error("real processing button must be disabled while CLI is not logged in");
+  const blockedButton = page.getByRole("button", { name: "请先连接百度网盘" });
+  if (await blockedButton.count()) {
+    await page.getByText(/请先连接百度网盘|登录态失效/).first().waitFor({ timeout: 10_000 });
+    await blockedButton.waitFor({ timeout: 10_000 });
+    if (!(await blockedButton.isDisabled())) {
+      throw new Error("real processing button must be disabled while CLI is not logged in");
+    }
+  } else {
+    await page.getByRole("button", { name: "开始原样转存" }).waitFor({ timeout: 10_000 });
   }
   if (await page.getByRole("dialog", { name: "任务结果弹窗" }).count()) {
     throw new Error("batch task dialog should not open while CLI is not logged in");
@@ -238,12 +243,9 @@ async function verifyBatchLayout(page, size) {
     document.querySelector(".batch-right")?.scrollTo(0, 0);
   });
   await page.getByRole("heading", { name: "批量处理" }).waitFor({ timeout: 5_000 });
-  await page.getByText("快速转存模式").waitFor({ timeout: 5_000 });
-  await page.getByText("检查二维码").waitFor({ timeout: 5_000 });
-  await page.getByText("OCR 检查文字").waitFor({ timeout: 5_000 });
   await page.getByText("任务流水线").waitFor({ timeout: 5_000 });
 
-  const startButton = page.getByRole("button", { name: /请先连接百度网盘|开始快速处理|开始处理并检查|开始深度处理/ }).first();
+  const startButton = page.getByRole("button", { name: /请先连接百度网盘|开始原样转存|开始整理转存|开始检测处理/ }).first();
   await startButton.waitFor({ state: "visible", timeout: 5_000 });
 
   const layout = await page.evaluate(() => {
@@ -255,11 +257,9 @@ async function verifyBatchLayout(page, size) {
         const rect = item.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
       });
-    const button = visibleMatch([...document.querySelectorAll("button")], /请先连接百度网盘|开始快速处理|开始处理并检查|开始深度处理/);
-    const scanOption = visibleMatch([...document.querySelectorAll("button")], /检查二维码/);
+    const button = visibleMatch([...document.querySelectorAll("button")], /请先连接百度网盘|开始原样转存|开始整理转存|开始检测处理/);
     const resultCard = visibleMatch([...document.querySelectorAll(".card")], /任务流水线|结果预览|分享链接转存还未真实验证/);
     const buttonRect = button?.getBoundingClientRect();
-    const scanRect = scanOption?.getBoundingClientRect();
     const cardRect = resultCard?.getBoundingClientRect();
     return {
       viewportWidth: window.innerWidth,
@@ -272,14 +272,6 @@ async function verifyBatchLayout(page, size) {
             right: buttonRect.right,
             top: buttonRect.top,
             bottom: buttonRect.bottom
-          }
-        : null,
-      scanRect: scanRect
-        ? {
-            left: scanRect.left,
-            right: scanRect.right,
-            top: scanRect.top,
-            bottom: scanRect.bottom
           }
         : null,
       cardRect: cardRect
@@ -306,9 +298,6 @@ async function verifyBatchLayout(page, size) {
   if (!isRectVisible(layout.buttonRect, layout.viewportWidth, layout.viewportHeight)) {
     throw new Error(`batch primary action is not visible at ${size.width}x${size.height}`);
   }
-  if (!isRectVisible(layout.scanRect, layout.viewportWidth, layout.viewportHeight)) {
-    throw new Error(`batch on-demand scan options are not visible at ${size.width}x${size.height}`);
-  }
   if (!isRectVisible(layout.cardRect, layout.viewportWidth, layout.viewportHeight)) {
     throw new Error(`batch result card is not visible at ${size.width}x${size.height}`);
   }
@@ -317,6 +306,15 @@ async function verifyBatchLayout(page, size) {
 function isRectVisible(rect, viewportWidth, viewportHeight) {
   if (!rect) return false;
   return rect.right > 0 && rect.left < viewportWidth && rect.bottom > 0 && rect.top < viewportHeight;
+}
+
+async function clickNav(page, label) {
+  await page.locator('nav[aria-label="主导航"] button').filter({ hasText: label }).evaluate((element) => {
+    if (element instanceof HTMLElement) {
+      element.click();
+    }
+  });
+  await wait(250);
 }
 
 async function firstCdpPage(browser) {

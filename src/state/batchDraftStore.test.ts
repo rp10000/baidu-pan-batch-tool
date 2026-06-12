@@ -9,6 +9,10 @@ describe("batchDraftStore", () => {
 
     expect(state.rawInput).toBe("");
     expect(state.hasUserEdited).toBe(false);
+    expect(state.transferMode).toBe("original");
+    expect(optionsFromBatchDraft(state).autoClassify).toBe(false);
+    expect(optionsFromBatchDraft(state).autoRenameFiles).toBe(false);
+    expect(optionsFromBatchDraft(state).scanOptions.enabled).toBe(false);
     expect(optionsFromBatchDraft(state).targetDirectory).toContain("盘姬测试");
   });
 
@@ -39,8 +43,22 @@ describe("batchDraftStore", () => {
     const renamed = batchDraftReducer(scanned, { type: "setOption", key: "renameRule", value: "{分类}_{序号}" });
 
     expect(renamed.scanOptions.mode).toBe("standard");
+    expect(renamed.transferMode).toBe("archive");
     expect(renamed.scanTrafficContent).toBe(true);
     expect(renamed.renameRule).toBe("{分类}_{序号}");
+  });
+
+  it("maps transfer modes to safe default options", () => {
+    const archived = batchDraftReducer(createInitialBatchDraftState(), { type: "setTransferMode", transferMode: "archive" });
+    const original = batchDraftReducer(archived, { type: "setTransferMode", transferMode: "original" });
+
+    expect(archived.autoClassify).toBe(true);
+    expect(archived.autoRenameFiles).toBe(true);
+    expect(archived.targetDirectory).toContain("output");
+    expect(original.autoClassify).toBe(false);
+    expect(original.autoRenameFiles).toBe(false);
+    expect(original.scanOptions.enabled).toBe(false);
+    expect(original.targetDirectory).toContain("raw");
   });
 
   it("drops sensitive raw input when draft persistence is disabled", () => {
@@ -53,5 +71,18 @@ describe("batchDraftStore", () => {
     expect(disabled.persistDraft).toBe(false);
     expect(disabled.rawInput).toBe("");
     expect(disabled.hasUserEdited).toBe(false);
+  });
+
+  it("keeps new defaults when hydrating older drafts without template fields", () => {
+    const hydrated = batchDraftReducer(createInitialBatchDraftState(), {
+      type: "hydrate",
+      state: {
+        rawInput: "https://pan.baidu.com/s/1old 1234",
+        hasUserEdited: true
+      }
+    });
+
+    expect(hydrated.shareTemplate.type).toBe("xiaohongshu_virtual");
+    expect(optionsFromBatchDraft(hydrated).shareTemplate.title).toBe("资料包");
   });
 });

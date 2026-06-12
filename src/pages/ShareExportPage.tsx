@@ -2,6 +2,7 @@ import { ClipboardCopy, Download, FileJson, Sheet } from "lucide-react";
 import type { ProcessingTask } from "../domain/types";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
 import { classifyShareFailure } from "../services/ShareFailureClassifier";
+import { generateShareMessage } from "../services/ShareMessageTemplateService";
 import { openShareLinkForVerification, verifyShareResult } from "../services/ShareVerificationService";
 import { useTaskStore } from "../state/taskStore";
 import { Card, StatCard, StatusDot, Tag } from "../components/ui";
@@ -26,6 +27,25 @@ export function ShareExportPage({ onToast }: { onToast: (message: string) => voi
     onToast("已复制分享信息");
   }
 
+  function copyShareMessage(task = activeTask) {
+    if (!task?.shareResult) {
+      onToast(task?.shareError ? "分享链接创建失败，无法生成发送文案" : "当前任务还没有生成分享信息");
+      return;
+    }
+    if (task.shareResult.source === "mock") {
+      onToast("Mock 演示链接不可作为真实发货文案复制");
+      return;
+    }
+    const message = task.shareMessage || generateShareMessage({
+      task,
+      shareResult: task.shareResult,
+      template: task.options.shareTemplate,
+      fileCount: task.finalShareFileCount
+    });
+    void navigator.clipboard?.writeText(message).catch(() => undefined);
+    onToast("已复制发送文案");
+  }
+
   return (
     <section className="page">
       <div className="page-title">
@@ -47,8 +67,8 @@ export function ShareExportPage({ onToast }: { onToast: (message: string) => voi
       </div>
 
       <div className="share-grid">
-        <ShareTaskTable tasks={tasks} activeTaskId={activeTask?.id} onSelect={selectTask} onCopy={copyShareInfo} />
-        <ShareDetailPanel task={activeTask} onCopy={() => copyShareInfo()} />
+        <ShareTaskTable tasks={tasks} activeTaskId={activeTask?.id} onSelect={selectTask} onCopy={copyShareInfo} onCopyMessage={copyShareMessage} />
+        <ShareDetailPanel task={activeTask} onCopy={() => copyShareInfo()} onCopyMessage={() => copyShareMessage()} />
         <ExportSettingsPanel task={activeTask} />
       </div>
     </section>
@@ -59,12 +79,14 @@ function ShareTaskTable({
   tasks,
   activeTaskId,
   onSelect,
-  onCopy
+  onCopy,
+  onCopyMessage
 }: {
   tasks: ProcessingTask[];
   activeTaskId?: string;
   onSelect: (taskId: string) => void;
   onCopy: (task: ProcessingTask) => void;
+  onCopyMessage: (task: ProcessingTask) => void;
 }) {
   return (
     <Card title="分享任务列表" className="span-2" action={<Tag tone="green">可复制</Tag>}>
@@ -76,6 +98,7 @@ function ShareTaskTable({
               <th>状态</th>
               <th>有效期</th>
               <th>提取码</th>
+              <th>发送文案</th>
               <th>导出</th>
               <th>操作</th>
             </tr>
@@ -90,17 +113,21 @@ function ShareTaskTable({
                 </td>
                 <td>永久有效</td>
                 <td>{task.shareResult?.source === "mock" ? "演示" : task.shareResult?.extractCode ?? "----"}</td>
+                <td>{task.shareMessage ? "已生成" : task.shareError ? "不可生成" : "待生成"}</td>
                 <td>{task.status === "completed" || task.status === "partial_completed" ? "可导出" : task.status === "failed" ? "失败" : "处理中"}</td>
                 <td>
                   <button className="text-btn" type="button" onClick={() => onCopy(task)} disabled={!task.shareResult || task.shareResult.source === "mock"}>
-                    复制
+                    链接
+                  </button>
+                  <button className="text-btn" type="button" onClick={() => onCopyMessage(task)} disabled={!task.shareResult || task.shareResult.source === "mock" || Boolean(task.shareError)}>
+                    文案
                   </button>
                 </td>
               </tr>
             ))}
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={6}>暂无分享任务，先完成批量处理。</td>
+                <td colSpan={7}>暂无分享任务，先完成批量处理。</td>
               </tr>
             )}
           </tbody>
@@ -110,7 +137,7 @@ function ShareTaskTable({
   );
 }
 
-function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () => void }) {
+function ShareDetailPanel({ task, onCopy, onCopyMessage }: { task?: ProcessingTask; onCopy: () => void; onCopyMessage: () => void }) {
   const verification = verifyShareResult(task?.shareResult);
   const isMock = task?.shareResult?.source === "mock";
   function openShare() {
@@ -144,6 +171,14 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
           <span>结果来源</span>
           <input className="input" value={task?.shareResult?.source === "local_cli" ? `真实 CLI / ${verification}` : task?.shareResult?.source === "mock" ? "Mock 演示链接，不可真实访问" : "未生成"} readOnly />
         </label>
+        <label>
+          <span>发送文案</span>
+          <textarea
+            className="textarea template-textarea"
+            value={task?.shareMessage ?? (task?.shareResult ? generateShareMessage({ task, shareResult: task.shareResult, template: task.options.shareTemplate, fileCount: task.finalShareFileCount }) : "生成分享链接后将自动生成发送文案。")}
+            readOnly
+          />
+        </label>
       </div>
       {task?.shareError && (
         <p className="notice error">分享失败：{classifyShareFailure(task.shareError).message}。不会导出假链接，请在百度网盘中手动分享输出目录。</p>
@@ -155,6 +190,9 @@ function ShareDetailPanel({ task, onCopy }: { task?: ProcessingTask; onCopy: () 
         </button>
         <button className="secondary-btn full" type="button" onClick={openShare} disabled={verification !== "format_valid"}>
           打开链接验证
+        </button>
+        <button className="secondary-btn full" type="button" onClick={onCopyMessage} disabled={isMock || !task?.shareResult || Boolean(task.shareError)}>
+          复制发送文案
         </button>
       </div>
     </Card>

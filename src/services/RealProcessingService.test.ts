@@ -17,6 +17,8 @@ const supportedCapabilities: StorageCapabilities = {
 };
 
 const options: ProcessingOptions = {
+  transferMode: "archive",
+  mergeLinks: false,
   autoClassify: true,
   autoTransfer: true,
   scanWatermark: false,
@@ -28,7 +30,8 @@ const options: ProcessingOptions = {
   renameRule: "{分类}_{日期}_{序号}",
   targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}",
   scanOptions: defaultFastScanOptions(),
-  shareTiming: "share_immediately"
+  shareTiming: "share_immediately",
+  shareTemplate: { type: "xiaohongshu_virtual", title: "资料包" }
 };
 
 describe("RealProcessingService", () => {

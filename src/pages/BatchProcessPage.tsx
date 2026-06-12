@@ -9,14 +9,16 @@ import { RenameRuleForm } from "../components/batch/RenameRuleForm";
 import { TaskInputPanel } from "../components/batch/TaskInputPanel";
 import { PipelineSteps } from "../components/batch/PipelineSteps";
 import { Card, StatCard, Tag } from "../components/ui";
-import type { ProcessingOptions } from "../domain/types";
+import type { ProcessingOptions, ProcessingTask, ShareTemplateSettings } from "../domain/types";
 import { defaultDeepScanOptions, defaultFastScanOptions, defaultStandardScanOptions } from "../domain/scanOptions";
 import type { ScanMode, ScanOptions } from "../domain/scanOptions";
 import { parseShareLinks } from "../domain/shareParser";
 import { MockProcessingService } from "../services/MockProcessingService";
+import { OriginalTransferService } from "../services/OriginalTransferService";
 import { RealProcessingService } from "../services/RealProcessingService";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
 import { classifyShareFailure } from "../services/ShareFailureClassifier";
+import { generateShareMessage, getShareTemplateOptions } from "../services/ShareMessageTemplateService";
 import { openShareLinkForVerification } from "../services/ShareVerificationService";
 import { useBatchDraftStore } from "../state/batchDraftStore";
 import { useStorageMode } from "../state/storageModeStore";
@@ -52,11 +54,11 @@ export function BatchProcessPage({
         ? "已连接"
         : "未验证";
   const primaryActionLabel =
-    options.scanOptions.mode === "off"
-      ? "开始快速处理"
-      : options.scanOptions.mode === "standard"
-        ? "开始处理并检查"
-        : "开始深度扫描处理";
+    options.transferMode === "original"
+      ? "开始原样转存"
+      : options.transferMode === "archive"
+        ? "开始整理转存"
+        : "开始检测处理";
   const parsedInputs = useMemo(() => parseShareLinks(input), [input]);
   const inputStats = useMemo(
     () => ({
@@ -95,7 +97,9 @@ export function BatchProcessPage({
       (storage.activeMode === "windows_local_cli" && storage.connectionOk) ||
       (storage.activeMode === "bdpan_wsl" && storage.connectionOk);
     const service = canUseRealAdapter
-      ? new RealProcessingService(storage.getActiveAdapter())
+      ? options.transferMode === "original"
+        ? new OriginalTransferService(storage.getActiveAdapter())
+        : new RealProcessingService(storage.getActiveAdapter())
       : new MockProcessingService();
     try {
       const task = await service.createAndRunTask(input, options, (snapshot) => {
@@ -152,43 +156,77 @@ export function BatchProcessPage({
     onToast("已复制分享链接和提取码");
   }
 
+  function copyShareMessage() {
+    if (!activeTask?.shareResult) {
+      onToast(activeTask?.shareError ? "分享链接创建失败，无法生成发送文案" : "生成分享链接后才能复制发送文案");
+      return;
+    }
+    if (activeTask.shareResult.source === "mock") {
+      onToast("Mock 演示链接不可作为真实发货文案复制");
+      return;
+    }
+    const message = generateShareMessage({
+      task: activeTask,
+      shareResult: activeTask.shareResult,
+      template: options.shareTemplate,
+      fileCount: activeTask.finalShareFileCount
+    });
+    void navigator.clipboard?.writeText(message).catch(() => undefined);
+    onToast("已复制发送文案");
+  }
+
   function openShareInfo() {
     const status = openShareLinkForVerification(activeTask?.shareResult);
     onToast(status === "opened_in_browser" ? "已打开默认浏览器验证链接" : `链接无法打开：${status}`);
   }
 
   async function retryCreateShare() {
-    if (!activeTask?.outputDirectory) {
+    const task = activeTask;
+    if (!task) {
+      onToast("当前任务没有输出目录");
+      return;
+    }
+    const directory = task.finalShareDirectory ?? task.outputDirectory ?? task.rawDirectory;
+    if (!directory) {
       onToast("当前任务没有输出目录");
       return;
     }
     setRunning(true);
     const adapter = storage.getActiveAdapter();
-    const share = await adapter.createShareLink({ remotePaths: [activeTask.outputDirectory], periodDays: 7 });
+    const share = await adapter.createShareLink({ remotePaths: [directory], periodDays: 7 });
     if (share.ok && share.shareUrl) {
+      const shareResult = {
+        source: share.source ?? "manual",
+        shareUrl: share.shareUrl,
+        extractCode: share.extractCode,
+        expireAt: share.expireAt,
+        verified: Boolean(share.verified),
+        redactedForLog: share.redactedForLog ?? "<redacted-share-url>"
+      } as const;
+      const shareMessage = generateShareMessage({
+        task: { ...task, shareResult },
+        shareResult,
+        template: options.shareTemplate,
+        fileCount: task.finalShareFileCount
+      });
       updateTask({
-        ...activeTask,
+        ...task,
         status: "completed",
         shareError: undefined,
-        shareResult: {
-          source: share.source ?? "manual",
-          shareUrl: share.shareUrl,
-          extractCode: share.extractCode,
-          expireAt: share.expireAt,
-          verified: Boolean(share.verified),
-          redactedForLog: share.redactedForLog ?? "<redacted-share-url>"
-        },
-        stages: { ...activeTask.stages, create_share: "completed" }
+        shareResult,
+        shareMessage,
+        shareTemplateType: options.shareTemplate.type,
+        stages: { ...task.stages, create_share: "completed" }
       });
       onToast("已重新创建分享链接");
     } else {
       const error = share.error ?? "创建分享链接失败";
       updateTask({
-        ...activeTask,
-        status: activeTask.processedFiles.length > 0 ? "partial_completed" : "failed",
+        ...task,
+        status: task.processedFiles.length > 0 ? "partial_completed" : "failed",
         shareError: error,
         shareResult: undefined,
-        stages: { ...activeTask.stages, create_share: "failed" }
+        stages: { ...task.stages, create_share: "failed" }
       });
       onToast(`分享失败：${classifyShareFailure(error).message}`);
     }
@@ -212,6 +250,23 @@ export function BatchProcessPage({
   function showFailureReason() {
     const failure = classifyShareFailure(activeTask?.shareError);
     onToast(`${failure.label}：${failure.message}`);
+  }
+
+  function updateShareTemplate(nextTemplate: typeof options.shareTemplate) {
+    draft.setOption("shareTemplate", nextTemplate);
+    if (!activeTask?.shareResult) return;
+    const shareMessage = generateShareMessage({
+      task: activeTask,
+      shareResult: activeTask.shareResult,
+      template: nextTemplate,
+      fileCount: activeTask.finalShareFileCount
+    });
+    updateTask({
+      ...activeTask,
+      options: { ...activeTask.options, shareTemplate: nextTemplate },
+      shareTemplateType: nextTemplate.type,
+      shareMessage
+    });
   }
 
   return (
@@ -265,6 +320,7 @@ export function BatchProcessPage({
             task={activeTask}
             onClose={() => setModalOpen(false)}
             onCopy={copyShareInfo}
+            onCopyMessage={copyShareMessage}
             onViewDetails={() => onNavigate("workbench")}
             onOpenShare={openShareInfo}
             onRetryShare={retryCreateShare}
@@ -321,6 +377,12 @@ export function BatchProcessPage({
             onRenameRuleChange={(renameRule) => draft.setOption("renameRule", renameRule)}
             onTargetDirectoryChange={(targetDirectory) => draft.setOption("targetDirectory", targetDirectory)}
           />
+          <ShareTemplateCard
+            task={activeTask}
+            template={options.shareTemplate}
+            onTemplateChange={updateShareTemplate}
+            onCopyMessage={copyShareMessage}
+          />
           <Card title="处理后文件重命名预览" action={<Tag tone="green">可导出</Tag>}>
             <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={options.targetDirectory} />
           </Card>
@@ -361,7 +423,7 @@ function modeNotice(mode: AdapterMode, message: string): string {
 function taskToast(task: { status: string; shareError?: string; shareResult?: { extractCode?: string } }): string {
   if (task.status === "failed") return `任务失败：${task.shareError ?? "真实处理失败"}`;
   if (task.status === "partial_completed") return `部分完成：${task.shareError ?? "创建分享链接失败"}`;
-  return `任务完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
+  return `原样转存完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
 }
 
 function taskStatusLabel(status?: string): string {
@@ -370,4 +432,76 @@ function taskStatusLabel(status?: string): string {
   if (status === "completed") return "已完成";
   if (status === "failed") return "失败";
   return status;
+}
+
+function ShareTemplateCard({
+  task,
+  template,
+  onTemplateChange,
+  onCopyMessage
+}: {
+  task?: ProcessingTask;
+  template: ShareTemplateSettings;
+  onTemplateChange: (template: ShareTemplateSettings) => void;
+  onCopyMessage: () => void;
+}) {
+  const preview = task?.shareError
+    ? "分享链接创建失败，无法生成发送文案。"
+    : task?.shareResult
+      ? generateShareMessage({
+          task,
+          shareResult: task.shareResult,
+          template,
+          fileCount: task.finalShareFileCount
+        })
+      : "生成分享链接后将自动生成发送文案。";
+  const update = (patch: Partial<typeof template>) => onTemplateChange({ ...template, ...patch });
+
+  return (
+    <Card title="分享文案模板" action={<Tag tone="pink">默认小红书发货</Tag>}>
+      <div className="form-grid two">
+        <label>
+          <span>模板类型</span>
+          <select className="input" value={template.type} onChange={(event) => update({ type: event.target.value as typeof template.type })}>
+            {getShareTemplateOptions().map((option) => (
+              <option value={option.value} key={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>标题</span>
+          <input className="input" value={template.title} onChange={(event) => update({ title: event.target.value })} placeholder="资料包" />
+        </label>
+        <label>
+          <span>店铺名</span>
+          <input className="input" value={template.storeName ?? ""} onChange={(event) => update({ storeName: event.target.value })} placeholder="可选" />
+        </label>
+        <label>
+          <span>订单号</span>
+          <input className="input" value={template.orderNo ?? ""} onChange={(event) => update({ orderNo: event.target.value })} placeholder="可选" />
+        </label>
+      </div>
+      <label className="field-label" htmlFor="share-template-note">备注</label>
+      <input id="share-template-note" className="input" value={template.note ?? ""} onChange={(event) => update({ note: event.target.value })} placeholder="可选，售后或发货提醒" />
+      {template.type === "custom" && (
+        <>
+          <label className="field-label" htmlFor="share-template-custom">自定义模板</label>
+          <textarea
+            id="share-template-custom"
+            className="textarea template-textarea"
+            value={template.customTemplate ?? ""}
+            onChange={(event) => update({ customTemplate: event.target.value })}
+            placeholder="可使用 {title} {shareUrl} {extractCode} {fileCount} {note} 等占位符"
+          />
+        </>
+      )}
+      <div className={`share-message-preview ${task?.shareError ? "failed" : ""}`}>
+        <b>发送文案预览</b>
+        <pre>{preview}</pre>
+      </div>
+      <button className="primary-btn full" type="button" onClick={onCopyMessage} disabled={!task?.shareResult || Boolean(task.shareError) || task.shareResult.source === "mock"}>
+        复制完整发送文案
+      </button>
+    </Card>
+  );
 }

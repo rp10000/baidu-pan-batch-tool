@@ -26,7 +26,7 @@ export function ProcessedFileTable({
               <td>{file.originalName}</td>
               <td>{file.category}</td>
               <td>{file.newName}</td>
-              <td>{targetDirectory.replace("{分类}", file.category)}</td>
+              <td>{file.targetDirectory ?? targetDirectory.replace("{分类}", file.category)}</td>
               <td>
                 <StatusDot tone={file.status === "failed" ? "red" : file.status === "skipped" ? "orange" : "green"} />
                 {statusLabel(file.status)}

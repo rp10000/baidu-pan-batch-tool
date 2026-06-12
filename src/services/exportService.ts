@@ -20,7 +20,11 @@ export function exportTaskAsCsv(task: ProcessingTask): void {
     "风险处理状态",
     "转存状态",
     "新分享链接",
-    "提取码"
+    "提取码",
+    "模板类型",
+    "发送文案",
+    "文件数量",
+    "任务状态"
   ];
   const rows = task.processedFiles.map((file) => [
     task.id,
@@ -33,7 +37,11 @@ export function exportTaskAsCsv(task: ProcessingTask): void {
     file.risks.map((risk) => risk.action).join(" / "),
     file.status,
     task.shareResult?.source === "mock" ? "" : task.shareResult?.shareUrl ?? "",
-    task.shareResult?.source === "mock" ? "" : task.shareResult?.extractCode ?? ""
+    task.shareResult?.source === "mock" ? "" : task.shareResult?.extractCode ?? "",
+    task.shareTemplateType ?? task.options.shareTemplate.type,
+    task.shareResult?.source === "mock" ? "" : task.shareMessage ?? "",
+    String(task.finalShareFileCount ?? task.processedFiles.length),
+    task.status
   ]);
   const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\r\n");
   downloadTextFile(`${task.id}.csv`, `\ufeff${csv}`, "text/csv;charset=utf-8");
@@ -54,6 +62,10 @@ function toExportPayload(task: ProcessingTask) {
       })),
       status: file.status
     })),
+    templateType: task.shareTemplateType ?? task.options.shareTemplate.type,
+    messageText: task.shareResult?.source === "mock" ? undefined : task.shareMessage,
+    fileCount: task.finalShareFileCount ?? task.processedFiles.length,
+    status: task.status,
     shareResult: task.shareResult?.source === "mock" ? undefined : task.shareResult
   };
 }
