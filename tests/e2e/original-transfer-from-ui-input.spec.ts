@@ -5,7 +5,7 @@ test("original transfer uses UI input, disables scan defaults, and shares the ra
     const commands: string[][] = [];
     let rawDirCreated = false;
     let transferDone = false;
-    const rawDirPattern = /\/盘姬测试\/panjie\/raw\/task-/;
+    const rawDirPattern = /\/盘姬资源库\/转存记录\/\d{4}-\d{2}-\d{2}\/AI绘画教程资料包/;
 
     Object.assign(window, {
       __panjieCliCommands: commands,
@@ -62,7 +62,7 @@ test("original transfer uses UI input, disables scan defaults, and shares the ra
   await expect(page.locator(".scan-option-grid")).toHaveCount(0);
 
   await page.locator("#share-input").fill([
-    "通过网盘分享的文件：",
+    "通过网盘分享的文件：AI绘画教程资料包",
     "链接: https://pan.baidu.com/s/1syntheticInput?pwd=z9x8 提取码: z9x8 复制这段内容后打开百度网盘手机App，操作更方便哦",
     "--来自百度网盘超级会员v9的分享"
   ].join("\n"));
@@ -76,6 +76,7 @@ test("original transfer uses UI input, disables scan defaults, and shares the ra
   const commands = await page.evaluate(() => (window as typeof window & { __panjieCliCommands: string[][] }).__panjieCliCommands);
   expect(commands).toContainEqual(["transfer", "https://pan.baidu.com/s/1syntheticInput?pwd=z9x8", "z9x8"]);
   const shareCommand = commands.find((args) => args[0] === "share");
-  expect(shareCommand?.join(" ")).toContain("/盘姬测试/panjie/raw/task-");
+  expect(shareCommand?.join(" ")).toContain("/盘姬资源库/转存记录/");
+  expect(shareCommand?.join(" ")).toContain("AI绘画教程资料包");
   expect(shareCommand?.join(" ")).not.toContain("/output/");
 });

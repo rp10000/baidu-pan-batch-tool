@@ -113,6 +113,30 @@ export interface ShareResult {
   copied?: boolean;
 }
 
+export type ResourceContentCategory =
+  | "课程资料"
+  | "设计素材"
+  | "文档模板"
+  | "软件工具"
+  | "电子书/PDF"
+  | "图片素材"
+  | "音频资料"
+  | "视频素材"
+  | "综合资料包"
+  | "未识别";
+
+export type ResourceCheckStatus = "unchecked" | "pending" | "unsupported" | "checked";
+
+export interface ResourceMetadata {
+  title: string;
+  contentCategory: ResourceContentCategory;
+  contentSummary: string;
+  checkStatus: ResourceCheckStatus;
+  savePath: string;
+  classificationConfidence: number;
+  classificationSource: "share_text" | "file_list" | "fallback" | "manual";
+}
+
 export interface ProcessingTaskItem {
   id: string;
   inputId: string;
@@ -143,6 +167,7 @@ export interface ProcessingTask {
   shareError?: string;
   shareMessage?: string;
   shareTemplateType?: ShareTemplateType;
+  resource?: ResourceMetadata;
   summary: {
     recognizedFiles: number;
     classifiedFiles: number;

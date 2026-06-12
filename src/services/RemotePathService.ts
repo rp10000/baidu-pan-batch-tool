@@ -1,4 +1,5 @@
 const DEFAULT_REMOTE_ROOT = "盘姬测试";
+const KNOWN_ROOT_DIRECTORIES = [DEFAULT_REMOTE_ROOT, "盘姬资源库"];
 
 export function normalizeRemotePath(path: string): string {
   const normalized = String(path || "")
@@ -23,7 +24,7 @@ export function toCliAbsolutePath(path: string): string {
   if (normalized.startsWith("/")) {
     return normalizeRemotePath(`/${normalized.replace(/^\/+/, "")}`);
   }
-  if (normalized === DEFAULT_REMOTE_ROOT || normalized.startsWith(`${DEFAULT_REMOTE_ROOT}/`)) {
+  if (KNOWN_ROOT_DIRECTORIES.some((root) => normalized === root || normalized.startsWith(`${root}/`))) {
     return `/${normalized}`;
   }
   return `/${joinRemotePath(DEFAULT_REMOTE_ROOT, normalized)}`;

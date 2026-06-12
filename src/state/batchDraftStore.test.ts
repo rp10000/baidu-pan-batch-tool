@@ -13,7 +13,7 @@ describe("batchDraftStore", () => {
     expect(optionsFromBatchDraft(state).autoClassify).toBe(false);
     expect(optionsFromBatchDraft(state).autoRenameFiles).toBe(false);
     expect(optionsFromBatchDraft(state).scanOptions.enabled).toBe(false);
-    expect(optionsFromBatchDraft(state).targetDirectory).toContain("盘姬测试");
+    expect(optionsFromBatchDraft(state).targetDirectory).toBe("盘姬资源库/转存记录/{日期}/{任务名}");
   });
 
   it("keeps user input in state across page unmounts", () => {
@@ -54,11 +54,11 @@ describe("batchDraftStore", () => {
 
     expect(archived.autoClassify).toBe(true);
     expect(archived.autoRenameFiles).toBe(true);
-    expect(archived.targetDirectory).toContain("output");
+    expect(archived.targetDirectory).toBe("盘姬资源库/转存记录/{日期}/{任务名}");
     expect(original.autoClassify).toBe(false);
     expect(original.autoRenameFiles).toBe(false);
     expect(original.scanOptions.enabled).toBe(false);
-    expect(original.targetDirectory).toContain("raw");
+    expect(original.targetDirectory).toBe("盘姬资源库/转存记录/{日期}/{任务名}");
   });
 
   it("drops sensitive raw input when draft persistence is disabled", () => {

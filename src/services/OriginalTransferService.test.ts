@@ -16,7 +16,7 @@ const options: ProcessingOptions = {
   autoCreateShareCode: true,
   autoRenameFiles: false,
   renameRule: "{分类}_{日期}_{序号}",
-  targetDirectory: "盘姬测试/panjie/raw/{taskId}",
+  targetDirectory: "盘姬资源库/转存记录/{日期}/{任务名}",
   scanOptions: defaultFastScanOptions(),
   shareTiming: "share_immediately",
   shareTemplate: { type: "xiaohongshu_virtual", title: "资料包" }
@@ -35,7 +35,7 @@ const capabilities: StorageCapabilities = {
 };
 
 describe("OriginalTransferService", () => {
-  it("transfers to raw directory, keeps names unchanged, and shares the raw directory", async () => {
+  it("transfers to the resource library path, keeps names unchanged, and creates resource metadata", async () => {
     const calls: string[] = [];
     const adapter = makeAdapter(calls, {
       ok: true,
@@ -46,27 +46,43 @@ describe("OriginalTransferService", () => {
       redactedForLog: "<redacted-share-url>"
     });
 
-    const task = await new OriginalTransferService(adapter, { delayMs: 0 }).createAndRunTask(
-      "链接: https://pan.baidu.com/s/1input?pwd=z9x8 提取码: z9x8",
+    const task = await new OriginalTransferService(adapter, {
+      delayMs: 0,
+      now: () => new Date("2026-06-12T04:00:00.000Z")
+    }).createAndRunTask(
+      [
+        "通过网盘分享的文件：AI绘画教程资料包",
+        "链接: https://pan.baidu.com/s/1input?pwd=z9x8",
+        "提取码: z9x8"
+      ].join("\n"),
       options
     );
 
     expect(task.status).toBe("completed");
     expect(task.options.transferMode).toBe("original");
+    expect(task.name).toBe("AI绘画教程资料包");
+    expect(task.resource).toMatchObject({
+      title: "AI绘画教程资料包",
+      contentCategory: "课程资料",
+      checkStatus: "unchecked",
+      savePath: "盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包"
+    });
+    expect(task.rawDirectory).toBe("/盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包");
     expect(task.summary.classifiedFiles).toBe(0);
     expect(task.summary.renamedFiles).toBe(0);
     expect(task.processedFiles[0]).toMatchObject({
       originalName: "hello.txt",
       newName: "hello.txt",
-      category: "原样转存"
+      category: "保持原样"
     });
     expect(calls.some((call) => call.startsWith("rename:"))).toBe(false);
     expect(calls.some((call) => call.startsWith("mv:"))).toBe(false);
     const shareCall = calls.find((call) => call.startsWith("share:"));
-    expect(shareCall).toContain("/raw/");
-    expect(shareCall).not.toContain("/output/");
+    expect(shareCall).toBe("share:/盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包:0");
     expect(task.shareResult?.shareUrl).toBe("https://pan.baidu.com/s/1original?pwd=z9x8");
-    expect(task.shareMessage).toContain("网盘链接：https://pan.baidu.com/s/1original?pwd=z9x8");
+    expect(task.shareMessage).toContain("【AI绘画教程资料包】");
+    expect(task.shareMessage).toContain("分类：课程资料");
+    expect(task.shareMessage).toContain("有效期：永久有效");
   });
 
   it("does not create a share for an empty raw directory", async () => {
@@ -135,7 +151,7 @@ function makeAdapter(
       return { ok: true };
     },
     async createShareLink(input) {
-      calls.push(`share:${input.remotePaths.join("|")}`);
+      calls.push(`share:${input.remotePaths.join("|")}:${input.periodDays}`);
       return share;
     }
   };

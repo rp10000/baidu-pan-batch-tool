@@ -7,7 +7,7 @@ test("share message template preview uses Xiaohongshu virtual delivery format", 
   await page.locator(".nav-btn").nth(1).click();
 
   await page.getByLabel("标题").fill("店铺资料包");
-  await expect(page.locator(".share-message-preview")).toContainText("生成分享链接后将自动生成发送文案");
+  await expect(page.locator(".share-message-preview")).toContainText("生成分享链接后将自动生成可转发文案");
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1template?pwd=z9x8");
   await page.locator(".page-actions .primary-btn").click();
   const dialog = page.getByRole("dialog").first();

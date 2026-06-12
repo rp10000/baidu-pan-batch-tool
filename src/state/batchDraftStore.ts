@@ -56,6 +56,7 @@ interface BatchDraftStoreValue extends BatchDraftState {
 
 const BatchDraftContext = createContext<BatchDraftStoreValue | undefined>(undefined);
 const BATCH_DRAFT_VERSION = 2;
+const DEFAULT_RESOURCE_TARGET_DIRECTORY = "盘姬资源库/转存记录/{日期}/{任务名}";
 
 export function createInitialBatchDraftState(): BatchDraftState {
   return {
@@ -74,7 +75,7 @@ export function createInitialBatchDraftState(): BatchDraftState {
     autoCreateShareCode: true,
     autoRenameFiles: false,
     renameRule: "{分类}_{日期}_{序号}",
-    targetDirectory: "盘姬测试/panjie/raw/{taskId}",
+    targetDirectory: DEFAULT_RESOURCE_TARGET_DIRECTORY,
     scanOptions: defaultFastScanOptions(),
     shareTiming: "share_immediately",
     shareTemplate: {
@@ -269,7 +270,7 @@ function applyTransferMode(state: BatchDraftState, transferMode: TransferMode): 
       autoRemoveWatermark: false,
       removeTrafficFields: false,
       scanOptions: defaultFastScanOptions(),
-      targetDirectory: "盘姬测试/panjie/raw/{taskId}"
+      targetDirectory: DEFAULT_RESOURCE_TARGET_DIRECTORY
     };
   }
   if (transferMode === "archive") {
@@ -283,7 +284,7 @@ function applyTransferMode(state: BatchDraftState, transferMode: TransferMode): 
       autoRemoveWatermark: false,
       removeTrafficFields: false,
       scanOptions: defaultFastScanOptions(),
-      targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}"
+      targetDirectory: DEFAULT_RESOURCE_TARGET_DIRECTORY
     };
   }
   return {
@@ -291,7 +292,7 @@ function applyTransferMode(state: BatchDraftState, transferMode: TransferMode): 
     transferMode,
     autoClassify: true,
     autoRenameFiles: true,
-    targetDirectory: "盘姬测试/panjie/output/{taskId}/{分类}"
+    targetDirectory: DEFAULT_RESOURCE_TARGET_DIRECTORY
   };
 }
 

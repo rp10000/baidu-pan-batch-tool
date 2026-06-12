@@ -27,8 +27,22 @@ export function ScanCheckPage() {
       </div>
 
       {!scanEnabled && (
-        <Card title="扫描未启用" action={<Tag tone="green">快速模式</Tag>}>
-          <p className="notice">当前任务未启用扫描。可在批量处理页勾选二维码/OCR/水印检测后重新运行，或点击单独扫描。</p>
+        <Card title="检查状态：未检查" action={<Tag tone="green">原样转存</Tag>}>
+          <div className="rename-preview">
+            <div>
+              <span>资源标题</span>
+              <b>{activeTask?.resource?.title ?? activeTask?.name ?? "暂无任务"}</b>
+            </div>
+            <div>
+              <span>内容分类</span>
+              <b>{activeTask?.resource?.contentCategory ?? "未识别"}</b>
+            </div>
+            <div>
+              <span>保存路径</span>
+              <b>{activeTask?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b>
+            </div>
+          </div>
+          <p className="notice">当前任务未执行水印、二维码、联系方式或引流内容检查。只有在批量处理页切到检测清理并勾选选项后才会执行真实检查。</p>
         </Card>
       )}
 

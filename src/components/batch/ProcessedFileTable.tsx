@@ -14,7 +14,7 @@ export function ProcessedFileTable({
         <thead>
           <tr>
             <th>原文件</th>
-            <th>分类</th>
+            <th>文件处理</th>
             <th>新文件名</th>
             <th>目标目录</th>
             <th>状态</th>

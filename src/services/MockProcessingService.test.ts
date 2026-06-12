@@ -60,6 +60,11 @@ describe("MockProcessingService", () => {
     expect(task.summary.removedTrafficItems).toBeGreaterThan(0);
     expect(task.summary.renamedFiles).toBe(5);
     expect(task.summary.transferredFiles).toBeGreaterThan(0);
+    expect(task.resource).toMatchObject({
+      contentCategory: "课程资料",
+      checkStatus: "unchecked"
+    });
+    expect(task.shareMessage).toContain("分类：课程资料");
     expect(task.shareResult).toMatchObject({
       source: "mock",
       shareUrl: expect.stringContaining("https://pan.baidu.com/s/mock-"),

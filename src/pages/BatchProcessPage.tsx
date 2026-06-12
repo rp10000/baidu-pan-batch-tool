@@ -158,21 +158,21 @@ export function BatchProcessPage({
 
   function copyShareMessage() {
     if (!activeTask?.shareResult) {
-      onToast(activeTask?.shareError ? "分享链接创建失败，无法生成发送文案" : "生成分享链接后才能复制发送文案");
+      onToast(activeTask?.shareError ? "分享链接创建失败，无法生成可转发文案" : "生成分享链接后才能复制可转发文案");
       return;
     }
     if (activeTask.shareResult.source === "mock") {
       onToast("Mock 演示链接不可作为真实发货文案复制");
       return;
     }
-    const message = generateShareMessage({
+    const message = activeTask.shareMessage || generateShareMessage({
       task: activeTask,
       shareResult: activeTask.shareResult,
       template: options.shareTemplate,
       fileCount: activeTask.finalShareFileCount
     });
     void navigator.clipboard?.writeText(message).catch(() => undefined);
-    onToast("已复制发送文案");
+    onToast("已复制可转发文案");
   }
 
   function openShareInfo() {
@@ -234,7 +234,7 @@ export function BatchProcessPage({
   }
 
   function openOutputDirectory() {
-    const directory = activeTask?.outputDirectory ?? activeTask?.options.targetDirectory;
+    const directory = activeTask?.resource?.savePath ?? activeTask?.outputDirectory ?? activeTask?.options.targetDirectory;
     if (!directory) {
       onToast("当前任务没有输出目录");
       return;
@@ -274,7 +274,7 @@ export function BatchProcessPage({
       <div className="page-title">
         <div>
           <h2>批量处理</h2>
-          <p>输入百度网盘分享链接和提取码，按当前接入模式执行转存、分类、重命名和导出</p>
+          <p>粘贴百度网盘分享文本，原样转存到资源库，识别资源分类，并生成可直接转发的中文文案。</p>
         </div>
         <div className="page-actions">
           <button className="secondary-btn" type="button">
@@ -359,6 +359,18 @@ export function BatchProcessPage({
                 <span>转存能力</span>
                 <b>未验证，缺测试分享链接</b>
               </div>
+              <div>
+                <span>内容分类</span>
+                <b>{activeTask?.resource?.contentCategory ?? "等待识别"}</b>
+              </div>
+              <div>
+                <span>检查状态</span>
+                <b>{resourceCheckLabel(activeTask)}</b>
+              </div>
+              <div>
+                <span>保存路径</span>
+                <b>{activeTask?.resource?.savePath ?? options.targetDirectory}</b>
+              </div>
             </div>
             {activeTask?.shareError && (
               <p className="notice error">文件已处理完成，但 BaiduPCS-Go 未能创建分享链接。原因：{classifyShareFailure(activeTask.shareError).message}</p>
@@ -371,30 +383,50 @@ export function BatchProcessPage({
               </p>
             )}
           </Card>
-          <RenameRuleForm
-            renameRule={options.renameRule}
-            targetDirectory={options.targetDirectory}
-            onRenameRuleChange={(renameRule) => draft.setOption("renameRule", renameRule)}
-            onTargetDirectoryChange={(targetDirectory) => draft.setOption("targetDirectory", targetDirectory)}
-          />
+          {options.transferMode === "original" ? (
+            <Card title="保存目录" action={<Tag tone="green">原样保存</Tag>}>
+              <div className="rename-preview">
+                <div>
+                  <span>正式路径</span>
+                  <b>{activeTask?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b>
+                </div>
+                <div>
+                  <span>文件处理</span>
+                  <b>不重命名、不移动、不拆分类目录</b>
+                </div>
+                <div>
+                  <span>内容分类</span>
+                  <b>{activeTask?.resource?.contentCategory ?? "转存后自动识别"}</b>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <RenameRuleForm
+              renameRule={options.renameRule}
+              targetDirectory={options.targetDirectory}
+              onRenameRuleChange={(renameRule) => draft.setOption("renameRule", renameRule)}
+              onTargetDirectoryChange={(targetDirectory) => draft.setOption("targetDirectory", targetDirectory)}
+            />
+          )}
           <ShareTemplateCard
             task={activeTask}
             template={options.shareTemplate}
             onTemplateChange={updateShareTemplate}
             onCopyMessage={copyShareMessage}
           />
-          <Card title="处理后文件重命名预览" action={<Tag tone="green">可导出</Tag>}>
-            <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={options.targetDirectory} />
+          <Card title="原样转存文件列表" action={<Tag tone="green">文件名保持不变</Tag>}>
+            <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={activeTask?.resource?.savePath ?? options.targetDirectory} />
           </Card>
           <Card title="新分享链接和提取码">
             <div className="new-share-list">
               <div>
-                <b>{activeTask?.name ?? "等待任务完成"}</b>
+                <b>{activeTask?.resource?.title ?? activeTask?.name ?? "等待任务完成"}</b>
                 <span>
                   {activeTask?.shareResult
                     ? `${activeTask.shareResult.source === "mock" ? "Mock 演示：" : ""}${activeTask.shareResult.shareUrl} · 提取码 ${activeTask.shareResult.extractCode ?? "----"}`
                     : "当前页面会按接入模式显示真实结果、降级原因或 Mock 演示结果"}
                 </span>
+                <small>{activeTask?.resource ? `分类：${activeTask.resource.contentCategory} · 保存：${activeTask.resource.savePath}` : "保存路径：盘姬资源库/转存记录/{日期}/{任务名}"}</small>
               </div>
             </div>
           </Card>
@@ -426,6 +458,14 @@ function taskToast(task: { status: string; shareError?: string; shareResult?: { 
   return `原样转存完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
 }
 
+function resourceCheckLabel(task?: ProcessingTask): string {
+  if (!task?.resource) return "未检查";
+  if (task.resource.checkStatus === "checked") return "已检查";
+  if (task.resource.checkStatus === "pending") return "等待检查";
+  if (task.resource.checkStatus === "unsupported") return "功能未接线";
+  return "未检查";
+}
+
 function taskStatusLabel(status?: string): string {
   if (!status) return "draft";
   if (status === "partial_completed") return "部分完成";
@@ -446,7 +486,7 @@ function ShareTemplateCard({
   onCopyMessage: () => void;
 }) {
   const preview = task?.shareError
-    ? "分享链接创建失败，无法生成发送文案。"
+    ? "分享链接创建失败，无法生成可转发文案。"
     : task?.shareResult
       ? generateShareMessage({
           task,
@@ -454,7 +494,7 @@ function ShareTemplateCard({
           template,
           fileCount: task.finalShareFileCount
         })
-      : "生成分享链接后将自动生成发送文案。";
+      : "生成分享链接后将自动生成可转发文案。";
   const update = (patch: Partial<typeof template>) => onTemplateChange({ ...template, ...patch });
 
   return (
@@ -496,11 +536,11 @@ function ShareTemplateCard({
         </>
       )}
       <div className={`share-message-preview ${task?.shareError ? "failed" : ""}`}>
-        <b>发送文案预览</b>
+        <b>可转发文案预览</b>
         <pre>{preview}</pre>
       </div>
       <button className="primary-btn full" type="button" onClick={onCopyMessage} disabled={!task?.shareResult || Boolean(task.shareError) || task.shareResult.source === "mock"}>
-        复制完整发送文案
+        复制完整可转发文案
       </button>
     </Card>
   );

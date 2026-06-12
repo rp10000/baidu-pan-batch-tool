@@ -4,7 +4,7 @@ import { Card, Tag } from "../ui";
 
 const actionItems: Array<{ key: keyof ProcessingOptions; label: string }> = [
   { key: "autoTransfer", label: "一键转存" },
-  { key: "autoClassify", label: "自动分类" },
+  { key: "autoClassify", label: "内容分类" },
   { key: "autoRenameFiles", label: "自动重命名" },
   { key: "autoCreateShareCode", label: "创建新分享链接" }
 ];
@@ -40,7 +40,7 @@ export function ProcessActionChips({
           onClick={() => onScanModeChange("off")}
         >
           <b>原样转存</b>
-          <span>默认模式：不分类、不重命名、不扫描，转存后直接生成新链接和发送文案。</span>
+          <span>默认模式：原样保存文件内容，只识别资源分类，转存后生成新链接和可转发文案。</span>
         </button>
         <button
           className={`mode-card ${options.transferMode === "archive" ? "active" : ""}`}
@@ -48,7 +48,7 @@ export function ProcessActionChips({
           onClick={() => onScanModeChange("standard")}
         >
           <b>归档整理</b>
-          <span>可选：转存后按文件名分类、重命名并移动到分类目录。</span>
+          <span>可选：后续再整理文件；默认不会改变原分享里的文件名和目录结构。</span>
         </button>
         <button
           className={`mode-card ${options.transferMode === "scan_clean" ? "active" : ""}`}
@@ -90,7 +90,7 @@ export function ProcessActionChips({
         ))}
       </div>
       <p className="notice">
-        原样转存不会下载文件样本、不会初始化 OCR、不会改文件名；只有切到检测清理并勾选选项后才执行扫描。
+        原样转存不会下载文件样本、不会初始化 OCR、不会改文件名；内容分类只用于发货文案和导出展示。
       </p>
     </Card>
   );

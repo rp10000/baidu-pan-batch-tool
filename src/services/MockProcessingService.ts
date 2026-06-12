@@ -4,6 +4,8 @@ import { createEmptyStages, PIPELINE_ORDER, STAGE_TASK_STATUS } from "../domain/
 import { applyRenameRule } from "../domain/renameRule";
 import { parseShareLinks } from "../domain/shareParser";
 import type { ProcessingService, TaskUpdateHandler } from "./ProcessingService";
+import { buildResourceTransferDirectory, classifyResource } from "./ResourceMetadataService";
+import { generateShareMessage } from "./ShareMessageTemplateService";
 
 interface MockProcessingServiceOptions {
   delayMs?: number;
@@ -53,14 +55,19 @@ export function createAndRunTask(rawText: string, options: ProcessingOptions): P
 function createDraftTask(rawText: string, options: ProcessingOptions): ProcessingTask {
   const createdAt = new Date().toISOString();
   const inputs = parseShareLinks(rawText);
+  const resource = classifyResource({ rawText });
+  const directory = buildResourceTransferDirectory({ createdAt, title: resource.title });
   return {
     id: `task-${Date.now()}-${hashString(rawText).slice(0, 6)}`,
-    name: `批量任务 ${formatTaskNameDate(createdAt)}`,
+    name: directory.title,
     createdAt,
     status: "draft",
     progress: 0,
     inputs,
     options,
+    rawDirectory: directory.cliPath,
+    outputDirectory: directory.cliPath,
+    resource: { ...resource, title: directory.title, savePath: directory.displayPath },
     stages: createEmptyStages(),
     processedFiles: [],
     summary: {
@@ -82,8 +89,17 @@ function applyStage(task: ProcessingTask, stage: (typeof PIPELINE_ORDER)[number]
     case "classify":
       task.processedFiles = createMockFiles().map((file) => ({
         ...file,
-        category: task.options.autoClassify ? getMockCategory(file.id) : "未分类"
+        category: task.options.transferMode === "original" ? "保持原样" : task.options.autoClassify ? getMockCategory(file.id) : "未分类"
       }));
+      task.resource = {
+        ...classifyResource({
+          rawText: [task.resource?.title, ...task.inputs.map((input) => input.rawLine)].filter(Boolean).join("\n"),
+          files: task.processedFiles.map((file) => ({ name: file.originalName, isDirectory: false })),
+          savePath: task.resource?.savePath
+        }),
+        title: task.resource?.title ?? task.name,
+        savePath: task.resource?.savePath ?? ""
+      };
       return;
     case "watermark_scan":
       if (task.options.scanWatermark) {
@@ -146,6 +162,15 @@ function applyStage(task: ProcessingTask, stage: (typeof PIPELINE_ORDER)[number]
           verified: false,
           redactedForLog: "<mock-share-url>"
         };
+        task.finalShareDirectory = task.resource?.savePath ?? task.rawDirectory;
+        task.finalShareFileCount = task.processedFiles.length;
+        task.shareTemplateType = task.options.shareTemplate.type;
+        task.shareMessage = generateShareMessage({
+          task,
+          shareResult: task.shareResult,
+          template: task.options.shareTemplate,
+          fileCount: task.finalShareFileCount
+        });
       }
       return;
   }

@@ -17,6 +17,12 @@ describe("RemotePathService", () => {
     expect(toCliAbsolutePath("盘姬测试/panjie/output/x")).toBe("/盘姬测试/panjie/output/x");
   });
 
+  it("treats resource library paths as first-class absolute pan paths", () => {
+    expect(toCliAbsolutePath("盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包")).toBe(
+      "/盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包"
+    );
+  });
+
   it("normalizes and joins remote path segments", () => {
     expect(normalizeRemotePath("\\盘姬测试//panjie/output/")).toBe("/盘姬测试/panjie/output");
     expect(joinRemotePath("盘姬测试", "panjie", "output", "x")).toBe("盘姬测试/panjie/output/x");

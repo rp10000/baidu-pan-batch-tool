@@ -30,7 +30,8 @@ test("original transfer mode skips scan and generates message preview across pag
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Mock 演示链接");
   await expect(dialog).toContainText("不可真实访问");
-  await expect(dialog).toContainText("扫描未启用，原样转存");
+  await expect(dialog).toContainText("检查状态");
+  await expect(dialog).toContainText("未检查");
   await expect(dialog).toContainText("课程先导片.mp4");
   await page.screenshot({ path: "artifacts/screenshots/task-result-original-transfer.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/batch-result-modal-desktop.png", fullPage: true });
@@ -44,13 +45,14 @@ test("original transfer mode skips scan and generates message preview across pag
   await expect(page.getByRole("heading", { name: "分享导出" })).toBeVisible();
   await expect(page.getByLabel("新分享链接")).toHaveValue(/https:\/\/pan\.baidu\.com\/s\/mock-/);
   await expect(page.getByLabel("结果来源")).toHaveValue("Mock 演示链接，不可真实访问");
-  await expect(page.getByLabel("风险扫描")).toHaveValue("未启用风险扫描");
-  await expect(page.getByLabel("发送文案")).toHaveValue(/网盘链接：/);
+  await expect(page.getByLabel("检查状态")).toHaveValue("未检查");
+  await expect(page.getByLabel("可转发文案")).toHaveValue(/网盘链接：/);
   await page.screenshot({ path: "artifacts/screenshots/share-export-message-text.png", fullPage: true });
 
   await nav.getByRole("button", { name: /扫描检查/ }).click();
   await expect(page.getByRole("heading", { name: "扫描检查" })).toBeVisible();
-  await expect(page.locator("body")).toContainText("当前任务未启用扫描");
+  await expect(page.locator("body")).toContainText("检查状态：未检查");
+  await expect(page.locator("body")).toContainText("当前任务未执行水印、二维码、联系方式或引流内容检查");
 
   expect(errors).toEqual([]);
 });
@@ -70,7 +72,7 @@ test("scan options run only after user selects detection mode", async ({ page })
   await page.getByRole("button", { name: /开始检测处理/ }).click();
   const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("deep 扫描按需执行");
+  await expect(dialog).toContainText(/deep 检查按需执行|等待检查|未检查/);
   await page.screenshot({ path: "artifacts/screenshots/final-cleaned-copy.png", fullPage: true });
   await dialog.getByRole("button", { name: "完成" }).click();
 

@@ -5,20 +5,24 @@ import { parseShareLinks } from "../domain/shareParser";
 import type { ProcessingOptions, ProcessingTask, ProcessingTaskItem, ProcessedFile, ShareResult } from "../domain/types";
 import { resolveFinalShareTarget } from "./OutputDirectoryGuard";
 import type { ProcessingService, TaskUpdateHandler } from "./ProcessingService";
+import { buildResourceTransferDirectory, classifyResource } from "./ResourceMetadataService";
 import { generateShareMessage } from "./ShareMessageTemplateService";
 
 interface OriginalTransferServiceOptions {
   delayMs?: number;
+  now?: () => Date;
 }
 
 export class OriginalTransferService implements ProcessingService {
   private readonly delayMs: number;
+  private readonly now: () => Date;
 
   constructor(
     private readonly adapter: StorageAdapter,
     options: OriginalTransferServiceOptions = {}
   ) {
     this.delayMs = options.delayMs ?? 120;
+    this.now = options.now ?? (() => new Date());
   }
 
   async createAndRunTask(
@@ -26,7 +30,7 @@ export class OriginalTransferService implements ProcessingService {
     options: ProcessingOptions,
     onUpdate?: TaskUpdateHandler
   ): Promise<ProcessingTask> {
-    const task = createOriginalDraftTask(rawText, options, this.adapter.mode);
+    const task = createOriginalDraftTask(rawText, options, this.adapter.mode, this.now());
     emit(task, onUpdate);
 
     try {
@@ -37,6 +41,7 @@ export class OriginalTransferService implements ProcessingService {
       }
 
       await runStage(task, "transfer", "transferring", 58, onUpdate, this.delayMs, async () => {
+        await this.reserveResourceDirectory(task);
         await this.adapter.mkdir({ remoteDirectory: task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}` });
         if (options.mergeLinks || validInputs.length === 1) {
           await this.transferInputGroup(task, validInputs, task.rawDirectory ?? `${PANJIE_ROOT}/raw/${task.id}`);
@@ -101,8 +106,37 @@ export class OriginalTransferService implements ProcessingService {
     };
     task.taskItems = [...(task.taskItems ?? []), item];
     task.processedFiles = [...task.processedFiles, ...files.map((file) => toProcessedFile(file, rawPath))];
+    task.resource = {
+      ...classifyResource({
+        rawText: [task.resource?.title, ...task.inputs.map((input) => input.rawLine)].filter(Boolean).join("\n"),
+        files,
+        savePath: task.resource?.savePath
+      }),
+      title: task.resource?.title ?? task.name,
+      savePath: task.resource?.savePath ?? rawPath.replace(/^\/+/, "")
+    };
     task.finalShareFileCount = task.processedFiles.length;
     task.summary = summarizeOriginalTask(task);
+  }
+
+  private async reserveResourceDirectory(task: ProcessingTask): Promise<void> {
+    const parentDirectory = dirname(task.rawDirectory ?? "");
+    if (!parentDirectory || parentDirectory === "/") return;
+    await this.adapter.mkdir({ remoteDirectory: parentDirectory });
+    const existing = await this.adapter.listFiles({ remoteDirectory: parentDirectory }).catch(() => []);
+    const directory = buildResourceTransferDirectory({
+      createdAt: task.createdAt,
+      title: task.resource?.title ?? task.name,
+      existingNames: existing.filter((file) => file.isDirectory).map((file) => file.name)
+    });
+    task.name = directory.title;
+    task.rawDirectory = directory.cliPath;
+    task.outputDirectory = directory.cliPath;
+    task.resource = {
+      ...(task.resource ?? classifyResource({ rawText: task.inputs.map((input) => input.rawLine).join("\n") })),
+      title: directory.title,
+      savePath: directory.displayPath
+    };
   }
 
   private async createSingleShare(task: ProcessingTask): Promise<void> {
@@ -190,23 +224,30 @@ function shouldMarkPartialShareFailure(error: string, task: ProcessingTask): boo
   return !/not absolute path|绝对网盘路径|路径错误/i.test(error);
 }
 
-function createOriginalDraftTask(rawText: string, options: ProcessingOptions, adapterMode: ProcessingTask["adapterMode"]): ProcessingTask {
-  const createdAt = new Date().toISOString();
+function createOriginalDraftTask(rawText: string, options: ProcessingOptions, adapterMode: ProcessingTask["adapterMode"], now: Date): ProcessingTask {
+  const createdAt = now.toISOString();
   const id = `task-${Date.now()}-${hashString(rawText).slice(0, 6)}`;
+  const resource = classifyResource({ rawText });
+  const directory = buildResourceTransferDirectory({ createdAt, title: resource.title });
   return {
     id,
-    name: `原样转存 ${createdAt.slice(0, 16).replace("T", " ")}`,
+    name: directory.title,
     createdAt,
     status: "draft",
     progress: 0,
     adapterMode,
-    rawDirectory: `${PANJIE_ROOT}/raw/${id}`,
-    outputDirectory: undefined,
+    rawDirectory: directory.cliPath,
+    outputDirectory: directory.cliPath,
     inputs: parseShareLinks(rawText),
     options,
     stages: createEmptyStages(),
     processedFiles: [],
     taskItems: [],
+    resource: {
+      ...resource,
+      title: directory.title,
+      savePath: directory.displayPath
+    },
     summary: {
       recognizedFiles: 0,
       classifiedFiles: 0,
@@ -245,12 +286,18 @@ function toProcessedFile(file: RemoteFile, fallbackDirectory: string): Processed
     id: file.id,
     originalName: file.name,
     newName: file.name,
-    category: "原样转存",
+    category: "保持原样",
     status: "transferred",
     risks: [],
     remotePath: file.path,
     targetDirectory: fallbackDirectory
   };
+}
+
+function dirname(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+/g, "/");
+  const index = normalized.lastIndexOf("/");
+  return index <= 0 ? "/" : normalized.slice(0, index);
 }
 
 function summarizeOriginalTask(task: ProcessingTask): ProcessingTask["summary"] {
