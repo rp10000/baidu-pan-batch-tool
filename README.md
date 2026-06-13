@@ -203,3 +203,7 @@ docs/images/readme/
 ```
 
 这些图片来自本地 Playwright / desktop smoke 的脱敏截图。更新截图前先确认不包含真实分享链接、提取码、账号信息或登录材料。
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
