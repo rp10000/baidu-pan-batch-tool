@@ -8,6 +8,7 @@ import { defaultWebPreferences } from "./security.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function createMainWindow() {
+  const iconPath = resolveWindowIconPath();
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -17,6 +18,7 @@ export function createMainWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#071225",
     title: "盘姬批量助手",
+    icon: iconPath,
     webPreferences: {
       ...defaultWebPreferences,
       preload: path.join(__dirname, "preload.js")
@@ -46,6 +48,15 @@ export function createMainWindow() {
   }
 
   return window;
+}
+
+function resolveWindowIconPath() {
+  const candidates = [
+    path.join(app.getAppPath(), "dist", "brand-avatar.ico"),
+    path.join(app.getAppPath(), "public", "brand-avatar.ico"),
+    path.join(process.cwd(), "public", "brand-avatar.ico")
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate));
 }
 
 function attachDiagnostics(window) {
