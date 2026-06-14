@@ -70,8 +70,8 @@ test("share code 2 is partial completed and copy is disabled", async ({ page }) 
   await expect(dialog.getByRole("button", { name: "打开输出目录" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "手动分享指引" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "查看失败原因" })).toBeVisible();
-  const copyButtons = dialog.getByRole("button", { name: "复制分享信息" });
-  await expect(copyButtons.first()).toBeDisabled();
-  await expect(copyButtons.last()).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "复制分享信息" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "打开链接验证" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "复制可转发文案" })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/fix-share-failed-partial.png", fullPage: true });
 });

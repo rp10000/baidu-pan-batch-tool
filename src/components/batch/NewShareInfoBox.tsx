@@ -16,7 +16,8 @@ export function NewShareInfoBox({
 }) {
   const verification = verifyShareResult(shareResult);
   const isMock = shareResult?.source === "mock";
-  const canOpen = shareResult?.source === "local_cli" && verification === "format_valid";
+  const hasFailure = Boolean(shareError);
+  const canOpen = !hasFailure && shareResult?.source === "local_cli" && verification === "format_valid";
   const failure = shareError ? classifyShareFailure(shareError) : undefined;
 
   return (
@@ -33,7 +34,7 @@ export function NewShareInfoBox({
         </span>
       </div>
       <div className="share-actions">
-        <button className="secondary-btn" type="button" onClick={onCopy} disabled={!shareResult || isMock}>
+        <button className="secondary-btn" type="button" onClick={onCopy} disabled={!shareResult || isMock || hasFailure}>
           <Copy size={16} />
           复制分享信息
         </button>

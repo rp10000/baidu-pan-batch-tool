@@ -60,8 +60,9 @@ export function buildResourceTransferDirectory(input: {
 }
 
 export function classifyResource(input: ClassifyResourceInput): ResourceMetadata {
-  const title = extractResourceTitleFromShareText(input.rawText);
   const files = input.files ?? [];
+  const extractedTitle = extractResourceTitleFromShareText(input.rawText);
+  const title = chooseResourceTitle(extractedTitle, files);
   const contentCategory = inferCategory(title, files);
   return {
     title,
@@ -70,7 +71,7 @@ export function classifyResource(input: ClassifyResourceInput): ResourceMetadata
     checkStatus: "unchecked",
     savePath: input.savePath ?? "",
     classificationConfidence: contentCategory === "未识别" ? 0.35 : 0.76,
-    classificationSource: title.startsWith("未命名资源") ? "file_list" : "share_text"
+    classificationSource: title === extractedTitle && !isGenericResourceTitle(title) ? "share_text" : files.length > 0 ? "file_list" : "fallback"
   };
 }
 
@@ -98,12 +99,58 @@ function inferCategory(title: string, files: Array<Pick<RemoteFile, "name" | "is
 
 function summarizeResource(category: ResourceContentCategory, files: Array<Pick<RemoteFile, "name" | "isDirectory">>): string {
   if (files.length === 0) {
-    return `${category}，原样转存，暂未读取到文件列表。`;
+    return `${category}。`;
   }
   const directoryCount = files.filter((file) => file.isDirectory).length;
   const fileCount = files.length - directoryCount;
   const detail = directoryCount > 0 ? `${fileCount} 个文件、${directoryCount} 个文件夹` : `${files.length} 个文件`;
-  return `${category}，共 ${detail}，原样转存，文件名和目录结构保持不变。`;
+  return `${category}，包含 ${detail}。`;
+}
+
+function chooseResourceTitle(titleFromText: string, files: Array<Pick<RemoteFile, "name" | "isDirectory">>): string {
+  if (!isGenericResourceTitle(titleFromText)) return titleFromText;
+  const titleFromFiles = selectBestFileTitle(files);
+  return titleFromFiles || titleFromText;
+}
+
+function selectBestFileTitle(files: Array<Pick<RemoteFile, "name" | "isDirectory">>): string | undefined {
+  return files
+    .map((file) => normalizeCandidateFileTitle(file.name))
+    .filter((name) => name && !isGenericResourceTitle(name))
+    .sort((a, b) => titleScore(b) - titleScore(a))[0];
+}
+
+function normalizeCandidateFileTitle(name: string): string {
+  const baseName = String(name || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean)
+    .at(-1) ?? "";
+  return sanitizeResourceTaskName(stripExtension(baseName).replace(/\(目录\)$/i, ""));
+}
+
+function isGenericResourceTitle(title: string): boolean {
+  const normalized = sanitizeResourceTaskName(title).toLowerCase();
+  return (
+    !normalized ||
+    /^未命名资源(?:-\d+)?$/.test(normalized) ||
+    /^编号\d+$/i.test(normalized) ||
+    /^资源\d+$/i.test(normalized) ||
+    /^任务\d+$/i.test(normalized) ||
+    /^文件(?:目录)?$/i.test(normalized)
+  );
+}
+
+function titleScore(title: string): number {
+  const chineseChars = title.match(/[\u4e00-\u9fa5]/g)?.length ?? 0;
+  return chineseChars * 2 + title.length;
+}
+
+function stripExtension(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0) return name;
+  const extension = name.slice(dotIndex).toLowerCase();
+  return /^[.][a-z0-9]{1,8}$/.test(extension) ? name.slice(0, dotIndex) : name;
 }
 
 function nextAvailableName(baseName: string, existingNames: string[]): string {

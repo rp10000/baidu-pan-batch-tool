@@ -320,7 +320,6 @@ export function BatchProcessPage({
             task={activeTask}
             onClose={() => setModalOpen(false)}
             onCopy={copyShareInfo}
-            onCopyMessage={copyShareMessage}
             onViewDetails={() => onNavigate("workbench")}
             onOpenShare={openShareInfo}
             onRetryShare={retryCreateShare}
@@ -474,6 +473,22 @@ function taskStatusLabel(status?: string): string {
   return status;
 }
 
+const DEFAULT_CUSTOM_SHARE_TEMPLATE = `【{title}】
+分类：{contentCategory}
+内容：{contentSummary}
+网盘链接：{shareUrl}
+提取码：{extractCode}
+{expireText}`;
+
+const SHARE_TEMPLATE_PLACEHOLDERS = [
+  { label: "资源标题", token: "{title}" },
+  { label: "内容分类", token: "{contentCategory}" },
+  { label: "内容摘要", token: "{contentSummary}" },
+  { label: "网盘链接", token: "{shareUrl}" },
+  { label: "提取码", token: "{extractCode}" },
+  { label: "有效期", token: "{expireText}" }
+];
+
 function ShareTemplateCard({
   task,
   template,
@@ -496,6 +511,11 @@ function ShareTemplateCard({
         })
       : "生成分享链接后将自动生成可转发文案。";
   const update = (patch: Partial<typeof template>) => onTemplateChange({ ...template, ...patch });
+  const applyDefaultCustomTemplate = () => update({ customTemplate: DEFAULT_CUSTOM_SHARE_TEMPLATE });
+  const insertPlaceholder = (token: string) => {
+    const current = template.customTemplate ?? "";
+    update({ customTemplate: current ? `${current}${token}` : token });
+  };
 
   return (
     <Card title="分享文案模板" action={<Tag tone="pink">默认小红书发货</Tag>}>
@@ -526,6 +546,18 @@ function ShareTemplateCard({
       {template.type === "custom" && (
         <>
           <label className="field-label" htmlFor="share-template-custom">自定义模板</label>
+          <div className="template-toolbar">
+            <button className="secondary-btn small" type="button" onClick={applyDefaultCustomTemplate}>
+              套用默认模板
+            </button>
+            <div className="chip-list template-placeholder-list" aria-label="可插入占位符">
+              {SHARE_TEMPLATE_PLACEHOLDERS.map((placeholder) => (
+                <button className="chip" type="button" key={placeholder.token} onClick={() => insertPlaceholder(placeholder.token)}>
+                  {placeholder.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <textarea
             id="share-template-custom"
             className="textarea template-textarea"

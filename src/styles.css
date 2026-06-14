@@ -737,6 +737,23 @@ button:disabled {
   overflow: auto;
 }
 
+.template-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.template-placeholder-list {
+  gap: 8px;
+}
+
+.secondary-btn.small {
+  min-height: 34px;
+  width: fit-content;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 .input-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

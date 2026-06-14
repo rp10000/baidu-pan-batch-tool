@@ -10,7 +10,6 @@ export function TaskResultModal({
   task,
   onClose,
   onCopy,
-  onCopyMessage,
   onOpenShare,
   onRetryShare,
   onOpenOutput,
@@ -24,7 +23,6 @@ export function TaskResultModal({
   task?: ProcessingTask;
   onClose: () => void;
   onCopy: () => void;
-  onCopyMessage: () => void;
   onOpenShare: () => void;
   onRetryShare: () => void;
   onOpenOutput: () => void;
@@ -37,8 +35,6 @@ export function TaskResultModal({
   if (!open || !task) return null;
   const title = resultTitle(task);
   const tone = task.status === "failed" ? "failed" : task.status === "partial_completed" ? "partial" : "success";
-  const canCopyShare = Boolean(task.shareResult && task.shareResult.source !== "mock" && !task.shareError);
-  const canCopyMessage = canCopyShare && Boolean(task.shareMessage);
   const hasShareFailure = Boolean(task.shareError);
 
   return (
@@ -52,36 +48,6 @@ export function TaskResultModal({
       </div>
       <PipelineSteps task={task} />
       <ResultSummaryCards task={task} />
-      <div className="rename-preview modal-directory">
-        <div>
-          <span>资源标题</span>
-          <b>{task.resource?.title ?? task.name}</b>
-        </div>
-        <div>
-          <span>内容分类</span>
-          <b>{task.resource?.contentCategory ?? "未识别"}</b>
-        </div>
-        <div>
-          <span>内容摘要</span>
-          <b>{task.resource?.contentSummary ?? "原样转存，文件名和目录结构保持不变。"}</b>
-        </div>
-        <div>
-          <span>转存目录</span>
-          <b>{task.resource?.savePath ?? task.rawDirectory ?? "Mock 输入目录"}</b>
-        </div>
-        <div>
-          <span>最终分享目录</span>
-          <b>{task.resource?.savePath ?? task.finalShareDirectory ?? task.outputDirectory ?? task.rawDirectory ?? task.options.targetDirectory}</b>
-        </div>
-        <div>
-          <span>检查状态</span>
-          <b>{checkStatusLabel(task)}</b>
-        </div>
-        <div>
-          <span>文件数量</span>
-          <b>{task.finalShareFileCount ?? task.summary.recognizedFiles}</b>
-        </div>
-      </div>
       <NewShareInfoBox shareResult={task.shareResult} shareError={task.shareError} onCopy={onCopy} onOpen={onOpenShare} />
       {task.shareMessage && !task.shareError && (
         <div className="share-message-preview modal-message-preview">
@@ -116,12 +82,6 @@ export function TaskResultModal({
         <button className="secondary-btn" type="button" onClick={onExportCsv}>
           导出 CSV
         </button>
-        <button className="secondary-btn" type="button" onClick={onCopy} disabled={!canCopyShare}>
-          复制分享信息
-        </button>
-        <button className="secondary-btn" type="button" onClick={onCopyMessage} disabled={!canCopyMessage}>
-          复制可转发文案
-        </button>
         <button className="primary-btn" type="button" onClick={onClose}>
           完成
         </button>
@@ -136,11 +96,4 @@ function resultTitle(task: ProcessingTask): string {
   if (task.status === "failed") return task.stages.transfer === "failed" ? "转存失败" : "任务失败";
   if (task.options.transferMode === "original") return "原样转存完成";
   return "任务完成";
-}
-
-function checkStatusLabel(task: ProcessingTask): string {
-  if (task.resource?.checkStatus === "checked") return "已检查";
-  if (task.resource?.checkStatus === "pending") return "等待检查";
-  if (task.resource?.checkStatus === "unsupported") return "功能未接线";
-  return task.options.scanOptions.enabled ? `${task.options.scanOptions.mode} 检查按需执行` : "未检查";
 }

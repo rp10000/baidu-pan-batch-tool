@@ -12,7 +12,7 @@ describe("ShareMessageTemplateService", () => {
         resource: {
           title: "AI绘画教程资料包",
           contentCategory: "课程资料",
-          contentSummary: "课程资料，共 3 个文件，原样转存，文件名和目录结构保持不变。",
+          contentSummary: "课程资料，包含 3 个文件。",
           checkStatus: "unchecked",
           savePath: "盘姬资源库/转存记录/2026-06-12/AI绘画教程资料包",
           classificationConfidence: 0.76,
@@ -32,7 +32,9 @@ describe("ShareMessageTemplateService", () => {
 
     expect(message).toContain("【AI绘画教程资料包】");
     expect(message).toContain("分类：课程资料");
-    expect(message).toContain("内容：课程资料，共 3 个文件");
+    expect(message).toContain("内容：课程资料，包含 3 个文件。");
+    expect(message).not.toContain("原样转存");
+    expect(message).not.toContain("文件名和目录结构保持不变");
     expect(message).toContain("网盘链接：https://pan.baidu.com/s/1real?pwd=9abc");
     expect(message).toContain("提取码：9abc");
     expect(message).toContain("有效期：永久有效");

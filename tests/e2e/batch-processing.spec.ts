@@ -30,15 +30,16 @@ test("original transfer mode skips scan and generates message preview across pag
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Mock 演示链接");
   await expect(dialog).toContainText("不可真实访问");
-  await expect(dialog).toContainText("检查状态");
-  await expect(dialog).toContainText("未检查");
+  await expect(dialog).not.toContainText("资源标题");
+  await expect(dialog).not.toContainText("内容摘要");
+  await expect(dialog).not.toContainText("最终分享目录");
   await expect(dialog).toContainText("课程先导片.mp4");
   await page.screenshot({ path: "artifacts/screenshots/task-result-original-transfer.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/batch-result-modal-desktop.png", fullPage: true });
 
-  const mockCopyButtons = dialog.getByRole("button", { name: "复制分享信息" });
-  await expect(mockCopyButtons.first()).toBeDisabled();
-  await expect(mockCopyButtons.last()).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "复制分享信息" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "打开链接验证" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "复制可转发文案" })).toHaveCount(0);
   await dialog.getByRole("button", { name: "完成" }).click();
 
   await nav.getByRole("button", { name: /分享导出/ }).click();
@@ -72,7 +73,8 @@ test("scan options run only after user selects detection mode", async ({ page })
   await page.getByRole("button", { name: /开始检测处理/ }).click();
   const dialog = page.getByRole("dialog", { name: "任务结果弹窗" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText(/deep 检查按需执行|等待检查|未检查/);
+  await expect(dialog).not.toContainText("内容摘要");
+  await expect(dialog).not.toContainText("最终分享目录");
   await page.screenshot({ path: "artifacts/screenshots/final-cleaned-copy.png", fullPage: true });
   await dialog.getByRole("button", { name: "完成" }).click();
 

@@ -73,7 +73,7 @@ function createTemplateValues(input: ShareMessageInput, shareResult: ShareResult
   const contentCategory = input.task?.resource?.contentCategory ?? "未识别";
   const contentSummary =
     input.task?.resource?.contentSummary ||
-    (fileCount > 0 ? `共 ${fileCount} 个文件，原样转存，文件名和目录结构保持不变。` : "原样转存，文件名和目录结构保持不变。");
+    (fileCount > 0 ? `包含 ${fileCount} 个文件。` : contentCategory);
   return {
     title: resourceTitle,
     resourceTitle,
