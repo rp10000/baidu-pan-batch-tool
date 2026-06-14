@@ -22,10 +22,13 @@ export function extractResourceTitleFromShareText(rawText: string, fallbackIndex
       line.match(/分享(?:文件|资料|资源)?\s*[:：]\s*(.+)$/i) ??
       line.match(/(?:文件|标题|资源名)\s*[:：]\s*(.+)$/i);
     const candidate = match?.[1] ? sanitizeResourceTaskName(match[1]) : "";
-    if (candidate) return candidate;
+    if (candidate && !isGenericResourceTitle(candidate)) return candidate;
   }
 
-  const firstPlainLine = lines.find((line) => isLikelyTitleLine(line));
+  const firstPlainLine = lines.find((line) => {
+    const candidate = sanitizeResourceTaskName(line);
+    return isLikelyTitleLine(line) && !isGenericResourceTitle(candidate);
+  });
   const title = firstPlainLine ? sanitizeResourceTaskName(firstPlainLine) : "";
   return title || `未命名资源-${String(fallbackIndex).padStart(3, "0")}`;
 }
@@ -76,7 +79,7 @@ export function classifyResource(input: ClassifyResourceInput): ResourceMetadata
 }
 
 function isLikelyTitleLine(line: string): boolean {
-  if (/pan\.baidu\.com|https?:\/\/|提取码|密码|复制这段内容|打开百度网盘|链接/i.test(line)) {
+  if (/pan\.baidu\.com|https?:\/\/|提取码|密码|复制这段内容|打开百度网盘|链接|通过网盘分享|分享的文件/i.test(line)) {
     return false;
   }
   return line.length >= 2 && line.length <= 80;
@@ -129,11 +132,11 @@ function normalizeCandidateFileTitle(name: string): string {
   return sanitizeResourceTaskName(stripExtension(baseName).replace(/\(目录\)$/i, ""));
 }
 
-function isGenericResourceTitle(title: string): boolean {
+export function isGenericResourceTitle(title: string): boolean {
   const normalized = sanitizeResourceTaskName(title).toLowerCase();
   return (
     !normalized ||
-    /^未命名资源(?:-\d+)?$/.test(normalized) ||
+    /^未命名资源(?:-\d+)*$/.test(normalized) ||
     /^编号\d+$/i.test(normalized) ||
     /^资源\d+$/i.test(normalized) ||
     /^任务\d+$/i.test(normalized) ||

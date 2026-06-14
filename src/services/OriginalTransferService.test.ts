@@ -180,6 +180,63 @@ describe("OriginalTransferService", () => {
     expect(calls).toContain(`transfer:/盘姬资源库/转存记录/2026-06-12/${title}-002`);
     expect(task.rawDirectory).toBe(`/盘姬资源库/转存记录/2026-06-12/${title}-002`);
   });
+
+  it("renames the resource container from a numbered remark to the transferred folder name", async () => {
+    const calls: string[] = [];
+    const realTitle = "公司年会学校新年晚会节目单word中秋国庆圣诞庆典word模板可编辑";
+    const adapter = makeAdapter(
+      calls,
+      {
+        ok: true,
+        source: "local_cli",
+        shareUrl: "https://pan.baidu.com/s/1original?pwd=z9x8",
+        extractCode: "z9x8",
+        verified: true,
+        redactedForLog: "<redacted-share-url>"
+      },
+      [{ id: "folder", name: realTitle, size: 0, isDirectory: true }],
+      {
+        async listFiles(input) {
+          calls.push(`ls:${input.remoteDirectory}`);
+          if (input.remoteDirectory.endsWith("/2026-06-12")) {
+            return [{
+              id: "old-container",
+              name: "未命名资源-001",
+              path: `${input.remoteDirectory}/未命名资源-001`,
+              size: 0,
+              isDirectory: true
+            }];
+          }
+          return [{ id: "folder", name: realTitle, path: `${input.remoteDirectory}/${realTitle}`, size: 0, isDirectory: true }];
+        }
+      }
+    );
+
+    const task = await new OriginalTransferService(adapter, {
+      delayMs: 0,
+      now: () => new Date("2026-06-12T04:00:00.000Z")
+    }).createAndRunTask(
+      [
+        "编号9011",
+        "链接: https://pan.baidu.com/s/1input?pwd=z9x8",
+        "提取码: z9x8"
+      ].join("\n"),
+      options
+    );
+
+    expect(task.status).toBe("completed");
+    expect(task.name).toBe(realTitle);
+    expect(task.resource?.title).toBe(realTitle);
+    expect(task.resource?.savePath).toBe(`盘姬资源库/转存记录/2026-06-12/${realTitle}`);
+    expect(task.rawDirectory).toBe(`/盘姬资源库/转存记录/2026-06-12/${realTitle}`);
+    expect(task.shareMessage).toContain(`【${realTitle}】`);
+    expect(task.shareMessage).not.toContain("编号9011");
+    expect(calls.some((call) =>
+      call.startsWith("mv:/盘姬资源库/转存记录/2026-06-12/未命名资源") &&
+      call.endsWith(`->/盘姬资源库/转存记录/2026-06-12/${realTitle}`)
+    )).toBe(true);
+    expect(calls).toContain(`share:/盘姬资源库/转存记录/2026-06-12/${realTitle}:0`);
+  });
 });
 
 function makeAdapter(
@@ -216,7 +273,7 @@ function makeAdapter(
       return { ok: true };
     },
     async moveFile(input) {
-      calls.push(`mv:${input.remotePath}`);
+      calls.push(`mv:${input.remotePath}->${input.targetDirectory}`);
       return { ok: true };
     },
     async downloadFile() {

@@ -5,7 +5,12 @@ import { parseShareLinks } from "../domain/shareParser";
 import type { ProcessingOptions, ProcessingTask, ProcessingTaskItem, ProcessedFile, ShareResult } from "../domain/types";
 import { resolveFinalShareTarget } from "./OutputDirectoryGuard";
 import type { ProcessingService, TaskUpdateHandler } from "./ProcessingService";
-import { buildResourceTransferDirectory, classifyResource } from "./ResourceMetadataService";
+import {
+  buildResourceTransferDirectory,
+  classifyResource,
+  isGenericResourceTitle,
+  sanitizeResourceTaskName
+} from "./ResourceMetadataService";
 import { generateShareMessage } from "./ShareMessageTemplateService";
 
 interface OriginalTransferServiceOptions {
@@ -104,10 +109,19 @@ export class OriginalTransferService implements ProcessingService {
       }
     }
 
-    const files = await this.adapter.listFiles({ remoteDirectory: rawPath });
+    let files = await this.adapter.listFiles({ remoteDirectory: rawPath });
     if (files.length <= 0) {
       throw new Error("转存完成后目录为空，未读取到文件");
     }
+    const metadata = classifyResource({
+      rawText: classificationRawText(task),
+      files,
+      savePath: task.resource?.savePath
+    });
+    const finalized = await this.finalizeResourceDirectoryFromFiles(task, rawPath, files, metadata);
+    rawPath = finalized.rawPath;
+    files = finalized.files;
+
     const item: ProcessingTaskItem = {
       id: `item-${(task.taskItems?.length ?? 0) + 1}`,
       inputId: inputs.map((input) => input.id).join(","),
@@ -116,14 +130,9 @@ export class OriginalTransferService implements ProcessingService {
     };
     task.taskItems = [...(task.taskItems ?? []), item];
     task.processedFiles = [...task.processedFiles, ...files.map((file) => toProcessedFile(file, rawPath))];
-    const metadata = classifyResource({
-      rawText: [task.resource?.title, ...task.inputs.map((input) => input.rawLine)].filter(Boolean).join("\n"),
-      files,
-      savePath: task.resource?.savePath
-    });
     task.resource = {
-      ...metadata,
-      savePath: task.resource?.savePath ?? rawPath.replace(/^\/+/, "")
+      ...finalized.metadata,
+      savePath: finalized.savePath
     };
     task.finalShareFileCount = task.processedFiles.length;
     task.summary = summarizeOriginalTask(task);
@@ -175,6 +184,58 @@ export class OriginalTransferService implements ProcessingService {
     }
 
     return directory.cliPath;
+  }
+
+  private async finalizeResourceDirectoryFromFiles(
+    task: ProcessingTask,
+    rawPath: string,
+    files: RemoteFile[],
+    metadata: ReturnType<typeof classifyResource>
+  ): Promise<{ rawPath: string; files: RemoteFile[]; metadata: ReturnType<typeof classifyResource>; savePath: string }> {
+    if (!shouldRenameResourceContainer(task, rawPath, metadata)) {
+      return {
+        rawPath,
+        files,
+        metadata,
+        savePath: task.resource?.savePath ?? rawPath.replace(/^\/+/, "")
+      };
+    }
+
+    const parentDirectory = dirname(rawPath);
+    const existing = await this.adapter.listFiles({ remoteDirectory: parentDirectory }).catch(() => []);
+    const directory = buildResourceTransferDirectory({
+      createdAt: task.createdAt,
+      title: metadata.title,
+      existingNames: existing
+        .map((file) => file.name)
+        .filter((name) => sanitizeResourceTaskName(name) !== sanitizeResourceTaskName(basename(rawPath)))
+    });
+
+    if (normalizePath(directory.cliPath) === normalizePath(rawPath)) {
+      return { rawPath, files, metadata, savePath: directory.displayPath };
+    }
+
+    const moved = await this.adapter.moveFile({ remotePath: rawPath, targetDirectory: directory.cliPath });
+    if (!moved.ok) {
+      throw new Error(`保存目录改名失败: ${moved.error ?? "未知错误"}`);
+    }
+
+    task.name = directory.title;
+    task.rawDirectory = directory.cliPath;
+    task.outputDirectory = directory.cliPath;
+
+    return {
+      rawPath: directory.cliPath,
+      files: files.map((file) => ({
+        ...file,
+        path: rewriteFilePath(file.path, rawPath, directory.cliPath)
+      })),
+      metadata: {
+        ...metadata,
+        savePath: directory.displayPath
+      },
+      savePath: directory.displayPath
+    };
   }
 
   private async createSingleShare(task: ProcessingTask): Promise<void> {
@@ -350,6 +411,43 @@ function normalizePath(path: string): string {
 
 function isDuplicateRemoteError(error: string): boolean {
   return /文件重复|已存在|duplicate|already exists|file exists/i.test(error);
+}
+
+function shouldRenameResourceContainer(
+  task: ProcessingTask,
+  rawPath: string,
+  metadata: ReturnType<typeof classifyResource>
+): boolean {
+  if (normalizePath(rawPath) !== normalizePath(task.rawDirectory ?? "")) return false;
+  if (isGenericResourceTitle(metadata.title)) return false;
+  const currentName = basename(rawPath);
+  if (!isGenericResourceTitle(currentName)) return false;
+  return sanitizeResourceTaskName(currentName) !== sanitizeResourceTaskName(metadata.title);
+}
+
+function classificationRawText(task: ProcessingTask): string {
+  const existingTitle = task.resource?.title;
+  return [
+    existingTitle && !isGenericResourceTitle(existingTitle) ? existingTitle : "",
+    ...task.inputs.map((input) => input.rawLine)
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function rewriteFilePath(path: string, oldBase: string, newBase: string): string {
+  const normalizedPath = normalizePath(path);
+  const oldAbsolute = normalizePath(oldBase);
+  const newAbsolute = normalizePath(newBase);
+  const oldDisplay = oldAbsolute.replace(/^\/+/, "");
+  const newDisplay = newAbsolute.replace(/^\/+/, "");
+  if (normalizedPath.startsWith(`${oldAbsolute}/`)) {
+    return `${newAbsolute}${normalizedPath.slice(oldAbsolute.length)}`;
+  }
+  if (normalizedPath.startsWith(`${oldDisplay}/`)) {
+    return `${newDisplay}${normalizedPath.slice(oldDisplay.length)}`;
+  }
+  return `${newDisplay}/${basename(normalizedPath)}`;
 }
 
 function summarizeOriginalTask(task: ProcessingTask): ProcessingTask["summary"] {

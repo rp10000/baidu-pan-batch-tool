@@ -17,6 +17,16 @@ describe("ResourceMetadataService", () => {
     expect(extractResourceTitleFromShareText(rawText)).toBe("AI绘画教程资料包");
   });
 
+  it("does not use pure numbered remarks as the resource title", () => {
+    const rawText = [
+      "通过网盘分享的文件：编号9011",
+      "链接: https://pan.baidu.com/s/1abc123?pwd=9k8m",
+      "提取码: 9k8m"
+    ].join("\n");
+
+    expect(extractResourceTitleFromShareText(rawText)).toBe("未命名资源-001");
+  });
+
   it("classifies the whole share resource instead of moving individual files", () => {
     const metadata = classifyResource({
       rawText: "通过网盘分享的文件：AI绘画课程训练营",
