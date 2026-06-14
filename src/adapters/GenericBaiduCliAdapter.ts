@@ -210,7 +210,14 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
     const remotePaths = input.remotePaths.map((remotePath) => assertCliAbsolutePath(toCliAbsolutePath(remotePath)));
     const result = await this.runner.run({ args: this.profile.commands.share(remotePaths, input.periodDays), timeoutMs: 60000 });
     const parsed = parseBaiduShareOutput(`${result.stdout}\n${result.stderr}`);
-    const listFallback = !parsed.shareUrl || parsed.failed || isFailedResult(result)
+    const parsedVerification = parsed.shareUrl && !parsed.failed
+      ? verifyShareResult({
+          source: "local_cli",
+          shareUrl: parsed.shareUrl,
+          extractCode: parsed.extractCode
+        })
+      : undefined;
+    const listFallback = !parsed.shareUrl || parsed.failed || isFailedResult(result) || parsedVerification === "missing_extract_code"
       ? parseBaiduShareOutput(await this.readShareListOutput())
       : undefined;
     const best = listFallback?.shareUrl && !listFallback.failed ? listFallback : parsed;
@@ -227,7 +234,12 @@ export class GenericBaiduCliAdapter implements LocalCliAdapter {
       extractCode: best.extractCode
     });
     if (verification !== "format_valid") {
-      return { ok: false, error: `创建分享链接失败：${verification}` };
+      return {
+        ok: false,
+        error: verification === "missing_extract_code"
+          ? "创建分享链接失败：未返回提取码"
+          : `创建分享链接失败：${verification}`
+      };
     }
 
     return {

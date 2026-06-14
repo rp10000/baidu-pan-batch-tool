@@ -1,7 +1,7 @@
 # Windows Local CLI Smoke Report
 
-generatedAt: 2026-06-14T15:09:44.056Z
-status: diagnostic
+generatedAt: 2026-06-14T15:46:12.426Z
+status: pass
 
 ## CLI
 
@@ -39,4 +39,4 @@ status: diagnostic
 | mkdir category | pass | ok |
 | mv | pass | ok |
 | share | pass | generated_redacted |
-| transfer | fail | failed |
+| transfer | pass | ui_draft_share_passed |

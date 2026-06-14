@@ -106,14 +106,89 @@ describe("OriginalTransferService", () => {
     expect(task.shareError).toBeTruthy();
     expect(calls.some((call) => call.startsWith("share:"))).toBe(false);
   });
+
+  it("uses a numbered Chinese resource directory when the title already exists", async () => {
+    const calls: string[] = [];
+    const title = "公司年会学校新年晚会节目单word模板";
+    const adapter = makeAdapter(
+      calls,
+      {
+        ok: true,
+        source: "local_cli",
+        shareUrl: "https://pan.baidu.com/s/1original?pwd=z9x8",
+        extractCode: "z9x8",
+        verified: true,
+        redactedForLog: "<redacted-share-url>"
+      },
+      [{ id: "1", name: "模板.docx", size: 1, isDirectory: false }],
+      {
+        async listFiles(input) {
+          calls.push(`ls:${input.remoteDirectory}`);
+          if (input.remoteDirectory.endsWith("/2026-06-12")) {
+            return [{ id: "existing", name: title, path: `${input.remoteDirectory}/${title}`, size: 0, isDirectory: false }];
+          }
+          return [{ id: "1", name: "模板.docx", path: `${input.remoteDirectory}/模板.docx`, size: 1, isDirectory: false }];
+        }
+      }
+    );
+
+    const task = await new OriginalTransferService(adapter, {
+      delayMs: 0,
+      now: () => new Date("2026-06-12T04:00:00.000Z")
+    }).createAndRunTask(`通过网盘分享的文件：${title}\n链接: https://pan.baidu.com/s/1input?pwd=z9x8`, options);
+
+    expect(task.status).toBe("completed");
+    expect(task.rawDirectory).toBe(`/盘姬资源库/转存记录/2026-06-12/${title}-002`);
+    expect(calls).toContain(`transfer:/盘姬资源库/转存记录/2026-06-12/${title}-002`);
+  });
+
+  it("retries the transfer in a new resource directory when the CLI reports duplicate files", async () => {
+    const calls: string[] = [];
+    const title = "AI绘画教程资料包";
+    let transferAttempts = 0;
+    const files = [{ id: "1", name: "hello.txt", size: 1, isDirectory: false }];
+    const adapter = makeAdapter(
+      calls,
+      {
+        ok: true,
+        source: "local_cli",
+        shareUrl: "https://pan.baidu.com/s/1original?pwd=z9x8",
+        extractCode: "z9x8",
+        verified: true,
+        redactedForLog: "<redacted-share-url>"
+      },
+      files,
+      {
+        async transferSharedLink(input) {
+          calls.push(`transfer:${input.targetDirectory}`);
+          transferAttempts += 1;
+          if (transferAttempts === 1) {
+            return { ok: false, error: "文件重复" };
+          }
+          return { ok: true, remotePath: input.targetDirectory, fileCount: files.length };
+        }
+      }
+    );
+
+    const task = await new OriginalTransferService(adapter, {
+      delayMs: 0,
+      now: () => new Date("2026-06-12T04:00:00.000Z")
+    }).createAndRunTask(`通过网盘分享的文件：${title}\n链接: https://pan.baidu.com/s/1input?pwd=z9x8`, options);
+
+    expect(task.status).toBe("completed");
+    expect(calls).toContain(`transfer:/盘姬资源库/转存记录/2026-06-12/${title}`);
+    expect(calls).toContain(`transfer:/盘姬资源库/转存记录/2026-06-12/${title}-002`);
+    expect(task.rawDirectory).toBe(`/盘姬资源库/转存记录/2026-06-12/${title}-002`);
+  });
 });
 
 function makeAdapter(
   calls: string[],
   share: Awaited<ReturnType<StorageAdapter["createShareLink"]>>,
-  files = [{ id: "1", name: "hello.txt", size: 1, isDirectory: false }]
+  files = [{ id: "1", name: "hello.txt", size: 1, isDirectory: false }],
+  overrides: Partial<StorageAdapter> = {}
 ): StorageAdapter {
-  return {
+  const adapter: StorageAdapter = {
     mode: "windows_local_cli",
     async getCapabilities() {
       return capabilities;
@@ -155,4 +230,5 @@ function makeAdapter(
       return share;
     }
   };
+  return { ...adapter, ...overrides };
 }

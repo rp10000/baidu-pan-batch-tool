@@ -79,7 +79,12 @@ export class OriginalTransferService implements ProcessingService {
     return cloneTask(task);
   }
 
-  private async transferInputGroup(task: ProcessingTask, inputs: ProcessingTask["inputs"], rawPath: string): Promise<void> {
+  private async transferInputGroup(
+    task: ProcessingTask,
+    inputs: ProcessingTask["inputs"],
+    rawPath: string,
+    allowDuplicateRetry = true
+  ): Promise<void> {
     for (const input of inputs) {
       const transfer = await this.adapter.transferSharedLink({
         url: input.url,
@@ -87,7 +92,12 @@ export class OriginalTransferService implements ProcessingService {
         targetDirectory: rawPath
       });
       if (!transfer.ok) {
-        throw new Error(transfer.error ?? "转存失败");
+        const error = transfer.error ?? "转存失败";
+        if (allowDuplicateRetry && isDuplicateRemoteError(error)) {
+          const retryPath = await this.reserveDuplicateRetryDirectory(task, rawPath);
+          return this.transferInputGroup(task, inputs, retryPath, false);
+        }
+        throw new Error(`分享链接转存到网盘失败: ${error}`);
       }
       if (transfer.fileCount !== undefined && transfer.fileCount <= 0) {
         throw new Error("转存完成后目录为空，未读取到文件");
@@ -127,7 +137,7 @@ export class OriginalTransferService implements ProcessingService {
     const directory = buildResourceTransferDirectory({
       createdAt: task.createdAt,
       title: task.resource?.title ?? task.name,
-      existingNames: existing.filter((file) => file.isDirectory).map((file) => file.name)
+      existingNames: existing.map((file) => file.name)
     });
     task.name = directory.title;
     task.rawDirectory = directory.cliPath;
@@ -137,6 +147,34 @@ export class OriginalTransferService implements ProcessingService {
       title: directory.title,
       savePath: directory.displayPath
     };
+  }
+
+  private async reserveDuplicateRetryDirectory(task: ProcessingTask, currentPath: string): Promise<string> {
+    const parentDirectory = dirname(currentPath);
+    await this.adapter.mkdir({ remoteDirectory: parentDirectory });
+    const existing = await this.adapter.listFiles({ remoteDirectory: parentDirectory }).catch(() => []);
+    const existingNames = new Set(existing.map((file) => file.name));
+    existingNames.add(task.name);
+    existingNames.add(basename(currentPath));
+
+    const directory = buildResourceTransferDirectory({
+      createdAt: task.createdAt,
+      title: task.resource?.title ?? task.name,
+      existingNames: [...existingNames]
+    });
+    await this.adapter.mkdir({ remoteDirectory: directory.cliPath });
+
+    if (normalizePath(currentPath) === normalizePath(task.rawDirectory ?? "")) {
+      task.name = directory.title;
+      task.rawDirectory = directory.cliPath;
+      task.outputDirectory = directory.cliPath;
+      task.resource = {
+        ...(task.resource ?? classifyResource({ rawText: task.inputs.map((input) => input.rawLine).join("\n") })),
+        savePath: directory.displayPath
+      };
+    }
+
+    return directory.cliPath;
   }
 
   private async createSingleShare(task: ProcessingTask): Promise<void> {
@@ -298,6 +336,20 @@ function dirname(path: string): string {
   const normalized = path.replace(/\\/g, "/").replace(/\/+/g, "/");
   const index = normalized.lastIndexOf("/");
   return index <= 0 ? "/" : normalized.slice(0, index);
+}
+
+function basename(path: string): string {
+  const normalized = normalizePath(path);
+  const segments = normalized.split("/").filter(Boolean);
+  return segments.at(-1) ?? "";
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+}
+
+function isDuplicateRemoteError(error: string): boolean {
+  return /文件重复|已存在|duplicate|already exists|file exists/i.test(error);
 }
 
 function summarizeOriginalTask(task: ProcessingTask): ProcessingTask["summary"] {

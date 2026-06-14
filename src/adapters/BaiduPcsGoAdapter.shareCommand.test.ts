@@ -73,6 +73,21 @@ describe("BaiduPcsGoAdapter share command behavior", () => {
     expect(result).toMatchObject({ ok: true, shareUrl: "https://pan.baidu.com/s/1fromlist?pwd=wxyz", extractCode: "wxyz" });
   });
 
+  it("uses share list as fallback when share set returns a link without extract code", async () => {
+    const runner = new ScenarioRunner((command) => {
+      if (command.args.join(" ") === "share list") {
+        return ok("已分享 https://pan.baidu.com/s/1fromlist?pwd=wxyz 提取码: wxyz");
+      }
+      return ok("分享链接: https://pan.baidu.com/s/1fromset");
+    });
+    const adapter = new BaiduPcsGoAdapter(runner);
+
+    const result = await adapter.createShareLink({ remotePaths: ["/盘姬资源库/转存记录/2026-06-12/资料包"], periodDays: 0 });
+
+    expect(runner.calls).toContainEqual(["share", "list"]);
+    expect(result).toMatchObject({ ok: true, shareUrl: "https://pan.baidu.com/s/1fromlist?pwd=wxyz", extractCode: "wxyz" });
+  });
+
   it("rejects share command argument errors", async () => {
     const runner = new ScenarioRunner(() => ({ exitCode: 2, stdout: "", stderr: "flag provided but not defined" }));
     const adapter = new BaiduPcsGoAdapter(runner);

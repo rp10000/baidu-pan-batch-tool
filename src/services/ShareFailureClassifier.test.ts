@@ -17,6 +17,8 @@ describe("ShareFailureClassifier", () => {
     expect(classifyShareFailure("文件或目录不存在").type).toBe("path_not_found");
     expect(classifyShareFailure("目录为空").type).toBe("empty_directory");
     expect(classifyShareFailure("当前版本不支持分享目录").type).toBe("unsupported_directory_share");
+    expect(classifyShareFailure("分享链接转存到网盘失败: 文件重复").type).toBe("duplicate_file");
+    expect(classifyShareFailure("创建分享链接失败：missing_extract_code").type).toBe("missing_extract_code");
   });
 
   it("detects CLI semantic failure even when exit code is zero", () => {

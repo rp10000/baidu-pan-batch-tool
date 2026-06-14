@@ -4,6 +4,8 @@ export type ShareFailureType =
   | "empty_directory"
   | "unsupported_directory_share"
   | "remote_server_code_2"
+  | "duplicate_file"
+  | "missing_extract_code"
   | "no_share_link_in_output"
   | "login_required"
   | "permission_or_risk_control"
@@ -21,6 +23,8 @@ const labels: Record<ShareFailureType, string> = {
   empty_directory: "目录为空",
   unsupported_directory_share: "当前 CLI 不支持分享该目录",
   remote_server_code_2: "百度服务端拒绝创建分享，代码 2",
+  duplicate_file: "目标目录已有同名文件",
+  missing_extract_code: "创建分享成功但未返回提取码",
   no_share_link_in_output: "未解析到真实分享链接",
   login_required: "未登录或登录已失效",
   permission_or_risk_control: "权限不足或账号风控限制",
@@ -40,6 +44,8 @@ export function classifyShareFailure(input: string | undefined, fallback: ShareF
 
 export function detectShareFailureType(text: string, lower = text.toLowerCase(), fallback: ShareFailureType = "unknown"): ShareFailureType {
   if (/not absolute path/i.test(text) || /绝对网盘路径|绝对路径/.test(text)) return "path_not_absolute";
+  if (/missing_extract_code|未返回提取码|提取码缺失|没有提取码/i.test(text)) return "missing_extract_code";
+  if (/文件重复|duplicate/i.test(text)) return "duplicate_file";
   if (/unsupported share|不支持创建分享|不支持.*分享/i.test(text)) return "unsupported_directory_share";
   if (/请重新登录|登录状态过期|未登录|user not exists|uid:\s*0\b|代码[:：]?\s*-6|代码[:：]?\s*31045/i.test(text)) {
     return "login_required";
@@ -67,6 +73,8 @@ export function isInvalidWhoOutput(output: string): boolean {
 function formatShareFailureMessage(type: ShareFailureType, text: string): string {
   if (type === "remote_server_code_2") return labels[type];
   if (type === "login_required") return "BaiduPCS-Go 登录已失效，请重新登录";
+  if (type === "missing_extract_code") return labels[type];
+  if (type === "duplicate_file") return labels[type];
   if (type === "no_share_link_in_output") return labels[type];
   const cleaned = text.trim();
   return cleaned ? `${labels[type]}：${cleaned}` : labels[type];
