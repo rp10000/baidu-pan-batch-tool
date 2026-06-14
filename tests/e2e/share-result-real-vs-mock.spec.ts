@@ -16,7 +16,7 @@ test("windows local cli failure shows reason instead of fake share link", async 
 
   await page.goto("/");
   const nav = page.locator('nav[aria-label="主导航"]');
-  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await nav.getByRole("button", { name: /任务处理/ }).click();
   await expect(page.locator("body")).toContainText("当前模式");
   await expect(page.locator("body")).toContainText("请先连接百度网盘");
   await page.screenshot({ path: "artifacts/screenshots/fixed-batch-transfer-status.png", fullPage: true });
@@ -26,10 +26,8 @@ test("windows local cli failure shows reason instead of fake share link", async 
   await expect(page.getByRole("dialog", { name: "任务结果弹窗" })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/fixed-share-result-real-or-failed.png", fullPage: true });
 
-  await nav.getByRole("button", { name: /分享导出/ }).click();
-  await expect(page.getByRole("heading", { name: "分享导出" })).toBeVisible();
-  await expect(page.getByLabel("新分享链接")).toHaveValue("未生成分享链接");
-  await expect(page.getByLabel("新分享链接")).not.toHaveValue(/mock-|generated_redacted|redacted/);
+  await expect(nav.getByRole("button", { name: /分享导出/ })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/mock-|generated_redacted|redacted/);
   await page.screenshot({ path: "artifacts/screenshots/fixed-share-export-real-or-failed.png", fullPage: true });
 
   expect(errors).toEqual([]);
@@ -57,7 +55,7 @@ test("share code 2 is partial completed and copy is disabled", async ({ page }) 
   await nav.getByRole("button", { name: /设置中心/ }).click();
   await page.getByRole("button", { name: "重新检测" }).click();
   await expect(page.getByText("已登录").first()).toBeVisible();
-  await nav.getByRole("button", { name: /批量处理/ }).click();
+  await nav.getByRole("button", { name: /任务处理/ }).click();
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1partial 1234");
   await page.getByRole("button", { name: /开始原样转存/ }).click();
 

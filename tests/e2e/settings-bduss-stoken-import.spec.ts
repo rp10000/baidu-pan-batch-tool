@@ -63,8 +63,10 @@ test("BDUSS STOKEN import requires confirmation and redacts debug output", async
 
   await page.goto("/");
   await page.locator('nav[aria-label="主导航"]').getByRole("button", { name: /设置中心/ }).click();
-  await page.getByRole("button", { name: "粘贴并导入登录态" }).click();
-  await expect(page.getByRole("dialog", { name: "最短登录态获取教程" })).toBeVisible();
+  await expect(page.getByText("粘贴 BDUSS / STOKEN")).toBeVisible();
+  await expect(page.getByPlaceholder("粘贴 BDUSS")).toBeVisible();
+  await expect(page.getByPlaceholder("粘贴 STOKEN")).toBeVisible();
+  await expect(page.getByText("完整 Cookie")).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/bduss-stoken-import-form.png", fullPage: true });
 
   await expect(page.getByRole("button", { name: "确认导入" })).toBeDisabled();

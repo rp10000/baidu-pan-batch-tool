@@ -22,7 +22,7 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
         </div>
         <button className="primary-btn" type="button" onClick={() => onNavigate("batch")}>
           <Zap size={18} />
-          开始批量处理
+          开始任务处理
         </button>
       </div>
 
@@ -64,7 +64,7 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
                 ))}
                 {tasks.length === 0 && (
                   <tr>
-                    <td colSpan={4}>暂无任务，先从批量处理页创建一条任务。</td>
+                    <td colSpan={4}>暂无任务，先从任务处理页创建一条任务。</td>
                   </tr>
                 )}
               </tbody>
@@ -92,14 +92,6 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
           </div>
         </Card>
 
-        <Card title="深度扫描任务" action={<Tag tone={activeTask?.options.scanOptions.mode === "deep" ? "orange" : "blue"}>按需</Tag>}>
-          <div className="rename-preview">
-            <div><span>OCR / QR</span><b>{activeTask?.options.scanOptions.enabled ? "按任务选项执行" : "未初始化"}</b></div>
-            <div><span>视频抽帧</span><b>{activeTask?.options.scanOptions.scanVideo ? "已启用" : "未启用"}</b></div>
-            <div><span>清理副本</span><b>{activeTask?.options.scanOptions.createCleanCopy ? "生成副本" : "未启用"}</b></div>
-          </div>
-        </Card>
-
         <Card title="最近活动">
           <div className="activity-list">
             {recentActivitiesFromTasks(tasks).map((activity) => (
@@ -113,10 +105,9 @@ export function WorkbenchPage({ onNavigate }: { onNavigate: (page: PageId) => vo
 
         <Card title="快捷入口" className="span-2">
           <div className="quick-grid">
-            <button type="button" onClick={() => onNavigate("batch")}>批量处理</button>
-            <button type="button" onClick={() => onNavigate("scan")}>扫描检查</button>
+            <button type="button" onClick={() => onNavigate("batch")}>任务处理</button>
             <button type="button" onClick={() => onNavigate("archive")}>资源归档</button>
-            <button type="button" onClick={() => onNavigate("share")}>分享导出</button>
+            <button type="button" onClick={() => onNavigate("settings")}>设置中心</button>
           </div>
         </Card>
       </div>

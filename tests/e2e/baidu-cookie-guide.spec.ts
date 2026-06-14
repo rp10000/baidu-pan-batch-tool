@@ -34,12 +34,14 @@ test("settings opens the shortest BDUSS STOKEN guide with six illustrated steps"
   await page.getByRole("button", { name: "打开百度网盘登录页" }).click();
   await expect(page.getByText("已打开百度网盘登录页")).toBeVisible();
 
-  await page.getByRole("button", { name: "我已登录，查看获取教程" }).click();
+  await page.getByRole("button", { name: "查看获取教程" }).click();
   const dialog = page.getByRole("dialog", { name: "最短登录态获取教程" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/步骤/)).toHaveCount(6);
   await expect(dialog).toContainText("复制 BDUSS");
   await expect(dialog).toContainText("复制 STOKEN");
+  await expect(dialog.getByPlaceholder("粘贴 BDUSS")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "确认导入" })).toHaveCount(0);
   await page.screenshot({ path: "artifacts/screenshots/guide-step-1-login.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/guide-step-3-cookies.png", fullPage: true });
   await page.screenshot({ path: "artifacts/screenshots/guide-step-4-bduss.png", fullPage: true });

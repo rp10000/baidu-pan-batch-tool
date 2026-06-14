@@ -23,7 +23,7 @@ test("batch processing requires Baidu Netdisk connection before real processing"
   });
 
   await page.goto("/");
-  await page.locator('nav[aria-label="主导航"]').getByRole("button", { name: /批量处理/ }).click();
+  await page.locator('nav[aria-label="主导航"]').getByRole("button", { name: /任务处理/ }).click();
   await page.locator("#share-input").fill("https://pan.baidu.com/s/1needslogin 1234");
   await expect(page.getByRole("button", { name: "请先连接百度网盘" })).toBeDisabled();
   await expect(page.locator(".batch-blocked-notice")).toContainText("登录态失效，请重新导入");
@@ -32,4 +32,5 @@ test("batch processing requires Baidu Netdisk connection before real processing"
   await page.getByRole("button", { name: "去设置中心连接" }).click();
   await expect(page.getByRole("heading", { name: "设置中心" })).toBeVisible();
   await expect(page.getByRole("button", { name: "打开百度网盘登录页" })).toBeVisible();
+  await expect(page.getByText("粘贴 BDUSS / STOKEN")).toBeVisible();
 });

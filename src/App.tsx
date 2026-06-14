@@ -2,9 +2,7 @@ import { useCallback, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { ArchivePage } from "./pages/ArchivePage";
 import { BatchProcessPage } from "./pages/BatchProcessPage";
-import { ScanCheckPage } from "./pages/ScanCheckPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { ShareExportPage } from "./pages/ShareExportPage";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
 import { StorageModeProvider } from "./state/storageModeStore";
 import { BatchDraftProvider } from "./state/batchDraftStore";
@@ -50,9 +48,7 @@ function AppContent() {
           onToast={showToast}
         />
       )}
-      {activePage === "scan" && <ScanCheckPage />}
       {activePage === "archive" && <ArchivePage />}
-      {activePage === "share" && <ShareExportPage onToast={showToast} />}
       {activePage === "settings" && <SettingsPage />}
     </AppShell>
   );

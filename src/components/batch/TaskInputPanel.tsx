@@ -34,7 +34,7 @@ export function TaskInputPanel({
           单条处理
         </button>
         <button className={mode === "batch" ? "active" : ""} type="button" onClick={() => onModeChange("batch")}>
-          批量处理
+          多条任务
         </button>
       </div>
 

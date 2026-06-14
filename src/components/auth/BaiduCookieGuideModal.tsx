@@ -1,20 +1,14 @@
 import { ExternalLink, X } from "lucide-react";
 import { GuideStepCard } from "./GuideStepCard";
-import { SessionImportForm } from "./SessionImportForm";
-import type { SessionImportPayload } from "./SessionImportForm";
 
 export function BaiduCookieGuideModal({
   open,
   onClose,
-  onOpenLoginPage,
-  onImport,
-  importing
+  onOpenLoginPage
 }: {
   open: boolean;
   onClose: () => void;
   onOpenLoginPage: () => void;
-  onImport: (payload: SessionImportPayload) => Promise<void> | void;
-  importing?: boolean;
 }) {
   if (!open) return null;
 
@@ -52,11 +46,9 @@ export function BaiduCookieGuideModal({
             继续搜索 STOKEN。如果 pan.baidu.com 下没有，可以查看 .baidu.com 或 passport.baidu.com 的 Cookies。
           </GuideStepCard>
           <GuideStepCard step={6} title="回到软件粘贴" visual={<PasteVisual />}>
-            把 BDUSS 粘贴到 BDUSS 输入框，把 STOKEN 粘贴到 STOKEN 输入框，然后点击确认导入。
+            关闭教程，把 BDUSS 粘贴到设置页的 BDUSS 输入框，把 STOKEN 粘贴到 STOKEN 输入框，然后点击确认导入。
           </GuideStepCard>
         </div>
-
-        <SessionImportForm onImport={onImport} importing={importing} />
       </div>
     </div>
   );

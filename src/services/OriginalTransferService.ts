@@ -106,13 +106,13 @@ export class OriginalTransferService implements ProcessingService {
     };
     task.taskItems = [...(task.taskItems ?? []), item];
     task.processedFiles = [...task.processedFiles, ...files.map((file) => toProcessedFile(file, rawPath))];
+    const metadata = classifyResource({
+      rawText: [task.resource?.title, ...task.inputs.map((input) => input.rawLine)].filter(Boolean).join("\n"),
+      files,
+      savePath: task.resource?.savePath
+    });
     task.resource = {
-      ...classifyResource({
-        rawText: [task.resource?.title, ...task.inputs.map((input) => input.rawLine)].filter(Boolean).join("\n"),
-        files,
-        savePath: task.resource?.savePath
-      }),
-      title: task.resource?.title ?? task.name,
+      ...metadata,
       savePath: task.resource?.savePath ?? rawPath.replace(/^\/+/, "")
     };
     task.finalShareFileCount = task.processedFiles.length;

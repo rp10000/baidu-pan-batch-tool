@@ -17,6 +17,7 @@ interface StorageModeValue {
   cliRuntime?: LocalCliRuntimeSnapshot;
   checking: boolean;
   setRequestedMode: (mode: AdapterMode) => void;
+  applyLocalCliRuntime: (runtime: LocalCliRuntimeSnapshot) => void;
   refreshCapabilities: () => Promise<void>;
   getActiveAdapter: () => ReturnType<typeof createStorageAdapter>;
 }
@@ -34,6 +35,16 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
   const [capabilities, setCapabilities] = useState<StorageCapabilities>(capabilitiesForMode(defaultMode));
   const [cliRuntime, setCliRuntime] = useState<LocalCliRuntimeSnapshot | undefined>();
   const [checking, setChecking] = useState(false);
+
+  const applyLocalCliRuntime = useCallback((runtime: LocalCliRuntimeSnapshot) => {
+    setRequestedModeState("windows_local_cli");
+    setActiveMode("windows_local_cli");
+    setCliRuntime(runtime);
+    setMessage(runtime.message);
+    setConnectionOk(runtime.loginState === "logged_in");
+    setDisplayName(runtime.account.username ?? (runtime.loginState === "logged_in" ? "已登录" : "未登录"));
+    setCapabilities(capabilitiesForMode("windows_local_cli"));
+  }, []);
 
   const setRequestedMode = useCallback((mode: AdapterMode) => {
     setRequestedModeState(mode);
@@ -93,6 +104,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
       cliRuntime,
       checking,
       setRequestedMode,
+      applyLocalCliRuntime,
       refreshCapabilities,
       getActiveAdapter
     }),
@@ -105,6 +117,7 @@ export function StorageModeProvider({ children }: { children: ReactNode }) {
       displayName,
       getActiveAdapter,
       message,
+      applyLocalCliRuntime,
       refreshCapabilities,
       requestedMode,
       setRequestedMode

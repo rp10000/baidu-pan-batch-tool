@@ -2,19 +2,15 @@ import {
   Archive,
   ClipboardCheck,
   Cog,
-  FileScan,
-  LayoutDashboard,
-  Share2
+  LayoutDashboard
 } from "lucide-react";
 import type { NavItem, ProcessedFile, RiskFile, ShareExportRow } from "../types";
 
 export const navItems: NavItem[] = [
   { id: "workbench", label: "任务工作台", description: "概览 / 队列 / 最近活动", icon: LayoutDashboard },
-  { id: "batch", label: "批量处理", description: "输入链接并生成新分享码", icon: ClipboardCheck },
-  { id: "scan", label: "扫描检查", description: "水印 / 二维码 / 引流风险", icon: FileScan },
-  { id: "archive", label: "资源归档", description: "分类 / 重命名 / 转存目录", icon: Archive },
-  { id: "share", label: "分享导出", description: "新链接 / 提取码 / 导出", icon: Share2 },
-  { id: "settings", label: "设置中心", description: "授权 / 并发 / 规则 / 日志", icon: Cog }
+  { id: "batch", label: "任务处理", description: "输入链接并生成新分享码", icon: ClipboardCheck },
+  { id: "archive", label: "资源归档", description: "分类 / 保存路径 / 转发文案", icon: Archive },
+  { id: "settings", label: "设置中心", description: "连接百度网盘 / 本机设置", icon: Cog }
 ];
 
 export const inputSample = `https://pan.baidu.com/s/1abcDEF 提取码: 12zx 备注: AI课程资料

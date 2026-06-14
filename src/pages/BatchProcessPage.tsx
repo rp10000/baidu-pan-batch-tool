@@ -150,29 +150,14 @@ export function BatchProcessPage({
       onToast("Mock 演示链接不可作为真实分享复制");
       return;
     }
-    void navigator.clipboard
-      ?.writeText(`${activeTask.shareResult.shareUrl}\n提取码：${activeTask.shareResult.extractCode ?? ""}`)
-      .catch(() => undefined);
-    onToast("已复制分享链接和提取码");
-  }
-
-  function copyShareMessage() {
-    if (!activeTask?.shareResult) {
-      onToast(activeTask?.shareError ? "分享链接创建失败，无法生成可转发文案" : "生成分享链接后才能复制可转发文案");
-      return;
-    }
-    if (activeTask.shareResult.source === "mock") {
-      onToast("Mock 演示链接不可作为真实发货文案复制");
-      return;
-    }
-    const message = activeTask.shareMessage || generateShareMessage({
+    const text = activeTask.shareMessage || generateShareMessage({
       task: activeTask,
       shareResult: activeTask.shareResult,
       template: options.shareTemplate,
       fileCount: activeTask.finalShareFileCount
     });
-    void navigator.clipboard?.writeText(message).catch(() => undefined);
-    onToast("已复制可转发文案");
+    void navigator.clipboard?.writeText(text).catch(() => undefined);
+    onToast("已复制分享信息");
   }
 
   function openShareInfo() {
@@ -273,7 +258,7 @@ export function BatchProcessPage({
     <section className="page batch-page">
       <div className="page-title">
         <div>
-          <h2>批量处理</h2>
+          <h2>任务处理</h2>
           <p>粘贴百度网盘分享文本，原样转存到资源库，识别资源分类，并生成可直接转发的中文文案。</p>
         </div>
         <div className="page-actions">
@@ -411,7 +396,6 @@ export function BatchProcessPage({
             task={activeTask}
             template={options.shareTemplate}
             onTemplateChange={updateShareTemplate}
-            onCopyMessage={copyShareMessage}
           />
           <Card title="原样转存文件列表" action={<Tag tone="green">文件名保持不变</Tag>}>
             <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={activeTask?.resource?.savePath ?? options.targetDirectory} />
@@ -473,57 +457,37 @@ function taskStatusLabel(status?: string): string {
   return status;
 }
 
-const DEFAULT_CUSTOM_SHARE_TEMPLATE = `【{title}】
-分类：{contentCategory}
-内容：{contentSummary}
-网盘链接：{shareUrl}
-提取码：{extractCode}
-{expireText}`;
-
-const SHARE_TEMPLATE_PLACEHOLDERS = [
-  { label: "资源标题", token: "{title}" },
-  { label: "内容分类", token: "{contentCategory}" },
-  { label: "内容摘要", token: "{contentSummary}" },
-  { label: "网盘链接", token: "{shareUrl}" },
-  { label: "提取码", token: "{extractCode}" },
-  { label: "有效期", token: "{expireText}" }
-];
-
 function ShareTemplateCard({
   task,
   template,
-  onTemplateChange,
-  onCopyMessage
+  onTemplateChange
 }: {
   task?: ProcessingTask;
   template: ShareTemplateSettings;
   onTemplateChange: (template: ShareTemplateSettings) => void;
-  onCopyMessage: () => void;
 }) {
+  const safeTemplate = template.type === "custom" ? { ...template, type: "xiaohongshu_virtual" as const } : template;
   const preview = task?.shareError
     ? "分享链接创建失败，无法生成可转发文案。"
     : task?.shareResult
       ? generateShareMessage({
           task,
           shareResult: task.shareResult,
-          template,
+          template: safeTemplate,
           fileCount: task.finalShareFileCount
         })
       : "生成分享链接后将自动生成可转发文案。";
   const update = (patch: Partial<typeof template>) => onTemplateChange({ ...template, ...patch });
-  const applyDefaultCustomTemplate = () => update({ customTemplate: DEFAULT_CUSTOM_SHARE_TEMPLATE });
-  const insertPlaceholder = (token: string) => {
-    const current = template.customTemplate ?? "";
-    update({ customTemplate: current ? `${current}${token}` : token });
-  };
+  const templateOptions = getShareTemplateOptions().filter((option) => option.value !== "custom");
+  const selectedTemplateType = template.type === "custom" ? "xiaohongshu_virtual" : template.type;
 
   return (
     <Card title="分享文案模板" action={<Tag tone="pink">默认小红书发货</Tag>}>
       <div className="form-grid two">
         <label>
           <span>模板类型</span>
-          <select className="input" value={template.type} onChange={(event) => update({ type: event.target.value as typeof template.type })}>
-            {getShareTemplateOptions().map((option) => (
+          <select className="input" value={selectedTemplateType} onChange={(event) => update({ type: event.target.value as typeof template.type })}>
+            {templateOptions.map((option) => (
               <option value={option.value} key={option.value}>{option.label}</option>
             ))}
           </select>
@@ -543,37 +507,10 @@ function ShareTemplateCard({
       </div>
       <label className="field-label" htmlFor="share-template-note">备注</label>
       <input id="share-template-note" className="input" value={template.note ?? ""} onChange={(event) => update({ note: event.target.value })} placeholder="可选，售后或发货提醒" />
-      {template.type === "custom" && (
-        <>
-          <label className="field-label" htmlFor="share-template-custom">自定义模板</label>
-          <div className="template-toolbar">
-            <button className="secondary-btn small" type="button" onClick={applyDefaultCustomTemplate}>
-              套用默认模板
-            </button>
-            <div className="chip-list template-placeholder-list" aria-label="可插入占位符">
-              {SHARE_TEMPLATE_PLACEHOLDERS.map((placeholder) => (
-                <button className="chip" type="button" key={placeholder.token} onClick={() => insertPlaceholder(placeholder.token)}>
-                  {placeholder.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <textarea
-            id="share-template-custom"
-            className="textarea template-textarea"
-            value={template.customTemplate ?? ""}
-            onChange={(event) => update({ customTemplate: event.target.value })}
-            placeholder="可使用 {title} {shareUrl} {extractCode} {fileCount} {note} 等占位符"
-          />
-        </>
-      )}
       <div className={`share-message-preview ${task?.shareError ? "failed" : ""}`}>
         <b>可转发文案预览</b>
         <pre>{preview}</pre>
       </div>
-      <button className="primary-btn full" type="button" onClick={onCopyMessage} disabled={!task?.shareResult || Boolean(task.shareError) || task.shareResult.source === "mock"}>
-        复制完整可转发文案
-      </button>
     </Card>
   );
 }

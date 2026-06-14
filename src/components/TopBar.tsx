@@ -5,6 +5,7 @@ import { useStorageMode } from "../state/storageModeStore";
 export function TopBar({ onNewTask }: { onNewTask: () => void }) {
   const storage = useStorageMode();
   const meta = getAdapterModeMeta(storage.activeMode);
+  const connected = storage.activeMode === "windows_local_cli" && storage.cliRuntime?.loginState === "logged_in";
 
   return (
     <header className="topbar">
@@ -17,7 +18,7 @@ export function TopBar({ onNewTask }: { onNewTask: () => void }) {
         <ShieldCheck size={17} />
         当前接入：{meta.label}
       </span>
-      <span className="sync-pill">
+      <span className={`sync-pill ${connected ? "connected" : ""}`}>
         <Bell size={17} />
         {storage.activeMode === "windows_local_cli" && storage.cliRuntime
           ? `${storage.cliRuntime.cliInstalled ? "CLI 已检测" : "CLI 未检测到"} · ${storage.cliRuntime.loginState === "logged_in" ? "已登录" : "未登录"}`

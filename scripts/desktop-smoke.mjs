@@ -8,7 +8,7 @@ const screenshotsDir = path.join(repoRoot, "artifacts", "screenshots");
 const logDir = path.join(repoRoot, "artifacts");
 const portableExe = path.join(repoRoot, "release", "盘姬批量助手 0.1.0.exe");
 const unpackedExe = path.join(repoRoot, "release", "win-unpacked", "盘姬批量助手.exe");
-const exePath = process.env.PANJIE_DESKTOP_EXE || (fs.existsSync(portableExe) ? portableExe : unpackedExe);
+const exePath = process.env.PANJIE_DESKTOP_EXE || (fs.existsSync(unpackedExe) ? unpackedExe : portableExe);
 
 fs.mkdirSync(screenshotsDir, { recursive: true });
 fs.mkdirSync(logDir, { recursive: true });
@@ -89,13 +89,13 @@ async function verifyUi(page) {
   await verifyCustomChrome(page);
 
   const nav = page.locator('nav[aria-label="主导航"]');
-  await nav.getByRole("button", { name: /批量处理/ }).waitFor({ timeout: 5_000 });
+  await nav.getByRole("button", { name: /任务处理/ }).waitFor({ timeout: 5_000 });
   await nav.getByRole("button", { name: /设置中心/ }).waitFor({ timeout: 5_000 });
   await page.getByText("Windows 本地 CLI").first().waitFor({ timeout: 5_000 });
 
   const navCount = await nav.locator("button").count();
-  if (navCount < 6) {
-    throw new Error(`expected at least 6 nav buttons, got ${navCount}`);
+  if (navCount < 4) {
+    throw new Error(`expected at least 4 nav buttons, got ${navCount}`);
   }
 
   const bodyText = (await page.locator("body").innerText()).trim();
@@ -109,7 +109,7 @@ async function verifyUi(page) {
   await page.screenshot({ path: path.join(screenshotsDir, "fixed-desktop-home.png"), fullPage: true });
   assertNotBlankScreenshot(path.join(screenshotsDir, "fixed-desktop-home.png"));
 
-  await clickNav(page, "批量处理");
+  await clickNav(page, "任务处理");
   await verifyBatchLayout(page, { width: 1440, height: 900 });
   await verifyDraftPersistence(page, nav);
   await verifyLoginBlockedState(page);
@@ -151,7 +151,7 @@ async function verifyDraftPersistence(page, nav) {
   await input.fill(draft);
   await clickNav(page, "设置中心");
   await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
-  await clickNav(page, "批量处理");
+  await clickNav(page, "任务处理");
   await input.waitFor({ timeout: 5_000 });
   if ((await input.inputValue()) !== draft) {
     throw new Error("batch draft input was not preserved after page navigation");
@@ -159,7 +159,7 @@ async function verifyDraftPersistence(page, nav) {
   await page.screenshot({ path: path.join(screenshotsDir, "fix-batch-input-persist.png"), fullPage: true });
   await page.getByRole("button", { name: "清空" }).click();
   await clickNav(page, "设置中心");
-  await clickNav(page, "批量处理");
+  await clickNav(page, "任务处理");
   if ((await input.inputValue()) !== "") {
     throw new Error("batch draft restored sample/input after clear");
   }
@@ -180,7 +180,7 @@ async function verifyLoginBlockedState(page) {
       throw new Error("real processing button must be disabled while CLI is not logged in");
     }
   } else {
-    await page.getByRole("button", { name: "开始原样转存" }).waitFor({ timeout: 10_000 });
+    await page.getByRole("button", { name: /开始原样转存|开始整理转存|开始检测处理/ }).waitFor({ timeout: 10_000 });
   }
   if (await page.getByRole("dialog", { name: "任务结果弹窗" }).count()) {
     throw new Error("batch task dialog should not open while CLI is not logged in");
@@ -192,34 +192,35 @@ async function verifySettingsSimpleMode(page) {
   await page.getByRole("heading", { name: "设置中心" }).waitFor({ timeout: 5_000 });
   await page.getByText("百度网盘连接").waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "打开百度网盘登录页" }).waitFor({ timeout: 5_000 });
-  await page.getByRole("button", { name: "粘贴并导入登录态" }).waitFor({ timeout: 5_000 });
+  await page.getByText("粘贴 BDUSS / STOKEN").waitFor({ timeout: 5_000 });
+  await page.getByPlaceholder("粘贴 BDUSS").waitFor({ timeout: 5_000 });
+  await page.getByPlaceholder("粘贴 STOKEN").waitFor({ timeout: 5_000 });
+  if ((await page.getByText("完整 Cookie").count()) > 0) {
+    throw new Error("settings page still exposes complete Cookie import");
+  }
+  if ((await page.getByText("检查依赖").count()) > 0) {
+    throw new Error("settings page still exposes dependency check");
+  }
   await page.getByRole("button", { name: "重新检测" }).click();
   await page.getByText("登录方式").waitFor({ timeout: 10_000 });
   await page.getByText("最后检测").waitFor({ timeout: 10_000 });
-  if (await page.getByText("能力矩阵").isVisible()) {
+  if (await page.getByText("开发者模式").isVisible()) {
     throw new Error("advanced debug is expanded by default");
   }
   await page.screenshot({ path: path.join(screenshotsDir, "settings-simple.png"), fullPage: true });
   await page.getByText("展开高级调试").click();
-  await page.getByRole("button", { name: "检查依赖" }).click();
-  await page.getByText("Node Runtime").waitFor({ timeout: 10_000 });
-  await page.getByText(/BaiduPCS-Go/).first().waitFor({ timeout: 10_000 });
-  const ocrButton = page.getByRole("button", { name: "OCR 模型安装未接线" });
-  await ocrButton.waitFor({ timeout: 5_000 });
-  if (!(await ocrButton.isDisabled())) {
-    throw new Error("OCR install button must stay disabled until the installer is fully wired");
-  }
+  await page.getByText("开发者模式").waitFor({ timeout: 5_000 });
+  await page.getByText("数据与缓存").waitFor({ timeout: 5_000 });
   await page.screenshot({ path: path.join(screenshotsDir, "fix-embedded-cli-detected.png"), fullPage: true });
   await page.screenshot({ path: path.join(screenshotsDir, "fix-dependency-check-no-hang.png"), fullPage: true });
   await page.screenshot({ path: path.join(screenshotsDir, "fix-ocr-disabled-clear.png"), fullPage: true });
   await page.getByRole("button", { name: "清理缓存" }).click();
-  await page.getByText(/删除文件 \d+ 个，释放/).waitFor({ timeout: 10_000 });
+  await page.getByText(/删除 \d+ 个文件，释放/).waitFor({ timeout: 10_000 });
   await page.getByRole("button", { name: "刷新执行日志" }).click();
   await page.getByText("执行命令").waitFor({ timeout: 5_000 });
   await page.getByText("stdout").waitFor({ timeout: 5_000 });
   await page.getByText("stderr").waitFor({ timeout: 5_000 });
   await page.getByText("exitCode").waitFor({ timeout: 5_000 });
-  await page.getByText("能力矩阵").waitFor({ timeout: 5_000 });
   await page.screenshot({ path: path.join(screenshotsDir, "settings-advanced-expanded.png"), fullPage: true });
 }
 
@@ -242,7 +243,7 @@ async function verifyBatchLayout(page, size) {
     document.querySelector(".batch-left")?.scrollTo(0, 0);
     document.querySelector(".batch-right")?.scrollTo(0, 0);
   });
-  await page.getByRole("heading", { name: "批量处理" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("heading", { name: "任务处理" }).waitFor({ timeout: 5_000 });
   await page.getByText("任务流水线").waitFor({ timeout: 5_000 });
 
   const startButton = page.getByRole("button", { name: /请先连接百度网盘|开始原样转存|开始整理转存|开始检测处理/ }).first();

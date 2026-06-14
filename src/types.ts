@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-export type PageId = "workbench" | "batch" | "scan" | "archive" | "share" | "settings";
+export type PageId = "workbench" | "batch" | "archive" | "settings";
 
 export interface NavItem {
   id: PageId;

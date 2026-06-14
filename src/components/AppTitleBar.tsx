@@ -6,6 +6,7 @@ export function AppTitleBar() {
   const storage = useStorageMode();
   const meta = getAdapterModeMeta(storage.activeMode);
   const windowApi = getWindowApi();
+  const connected = storage.activeMode === "windows_local_cli" && storage.cliRuntime?.loginState === "logged_in";
 
   return (
     <header className="app-titlebar" data-testid="custom-titlebar">
@@ -13,7 +14,7 @@ export function AppTitleBar() {
         <img src="./brand-avatar.png" alt="" />
         <span>盘姬 · 批量助手</span>
       </div>
-      <div className="titlebar-status">
+      <div className={`titlebar-status ${connected ? "connected" : ""}`}>
         <span>{meta.label}</span>
         <b>{titlebarStatus(storage)}</b>
       </div>
