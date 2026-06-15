@@ -17,7 +17,8 @@ test("windows local cli failure shows reason instead of fake share link", async 
   await page.goto("/");
   const nav = page.locator('nav[aria-label="主导航"]');
   await nav.getByRole("button", { name: /任务处理/ }).click();
-  await expect(page.locator("body")).toContainText("当前模式");
+  await expect(page.locator("body")).toContainText("保存目录");
+  await expect(page.locator("body")).toContainText("模板详情");
   await expect(page.locator("body")).toContainText("请先连接百度网盘");
   await page.screenshot({ path: "artifacts/screenshots/fixed-batch-transfer-status.png", fullPage: true });
 

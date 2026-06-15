@@ -9,7 +9,7 @@ export interface ShareMessageInput {
 
 const TEMPLATE_LABELS: Record<ShareTemplateType, string> = {
   baidu_standard: "百度标准格式",
-  xiaohongshu_virtual: "小红书虚拟店铺发货格式",
+  xiaohongshu_virtual: "小红书发货格式",
   wechat_simple: "微信简洁格式",
   after_sale_resend: "售后补发格式",
   custom: "自定义模板"
@@ -46,6 +46,10 @@ export function getShareTemplateOptions(): Array<{ value: ShareTemplateType; lab
     value,
     label: TEMPLATE_LABELS[value]
   }));
+}
+
+export function getShareTemplateText(type: ShareTemplateType): string {
+  return type === "custom" ? TEMPLATES.xiaohongshu_virtual : TEMPLATES[type];
 }
 
 export function generateShareMessage(input: ShareMessageInput): string {

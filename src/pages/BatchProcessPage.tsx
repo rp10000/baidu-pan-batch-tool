@@ -1,7 +1,5 @@
 import { Download, Play } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getAdapterModeMeta } from "../adapters/adapterMode";
-import type { AdapterMode } from "../adapters/adapterMode";
 import { TaskResultModal } from "../components/batch/TaskResultModal";
 import { ProcessActionChips } from "../components/batch/ProcessActionChips";
 import { ProcessedFileTable } from "../components/batch/ProcessedFileTable";
@@ -18,7 +16,7 @@ import { OriginalTransferService } from "../services/OriginalTransferService";
 import { RealProcessingService } from "../services/RealProcessingService";
 import { exportTaskAsCsv, exportTaskAsJson } from "../services/exportService";
 import { classifyShareFailure } from "../services/ShareFailureClassifier";
-import { generateShareMessage, getShareTemplateOptions } from "../services/ShareMessageTemplateService";
+import { generateShareMessage, getShareTemplateOptions, getShareTemplateText } from "../services/ShareMessageTemplateService";
 import { openShareLinkForVerification } from "../services/ShareVerificationService";
 import { useBatchDraftStore } from "../state/batchDraftStore";
 import { useStorageMode } from "../state/storageModeStore";
@@ -41,18 +39,7 @@ export function BatchProcessPage({
   const options = draft.options;
   const { activeTask, createTask, updateTask } = useTaskStore();
   const storage = useStorageMode();
-  const modeMeta = getAdapterModeMeta(storage.activeMode);
   const localCliBlocked = storage.activeMode === "windows_local_cli" && !storage.connectionOk;
-  const localCliStatusText =
-    storage.activeMode === "windows_local_cli"
-      ? storage.cliRuntime?.loginState === "logged_in"
-        ? "已登录"
-        : storage.cliRuntime?.cliInstalled
-          ? "未登录"
-          : "未检测到"
-      : storage.connectionOk
-        ? "已连接"
-        : "未验证";
   const primaryActionLabel =
     options.transferMode === "original"
       ? "开始原样转存"
@@ -325,62 +312,12 @@ export function BatchProcessPage({
             <span className="progress full-width"><span style={{ width: `${activeTask?.progress ?? 0}%` }} /></span>
             <p className="muted">当前进度：{activeTask?.progress ?? 0}%</p>
           </Card>
-          <Card title="当前处理状态" action={<Tag tone={activeTask?.shareError ? "orange" : storage.activeMode === "windows_local_cli" ? "green" : "blue"}>{modeMeta.badge}</Tag>}>
-            <div className="status-grid">
-              <div>
-                <span>当前模式</span>
-                <b>{modeMeta.label}</b>
-              </div>
-              <div>
-                <span>CLI 状态</span>
-                <b>{localCliStatusText}</b>
-              </div>
-              <div>
-                <span>分享能力</span>
-                <b>{activeTask?.shareResult ? "可用" : activeTask?.shareError ? "失败" : "未验证"}</b>
-              </div>
-              <div>
-                <span>转存能力</span>
-                <b>未验证，缺测试分享链接</b>
-              </div>
-              <div>
-                <span>内容分类</span>
-                <b>{activeTask?.resource?.contentCategory ?? "等待识别"}</b>
-              </div>
-              <div>
-                <span>检查状态</span>
-                <b>{resourceCheckLabel(activeTask)}</b>
-              </div>
-              <div>
-                <span>保存路径</span>
-                <b>{activeTask?.resource?.savePath ?? options.targetDirectory}</b>
-              </div>
-            </div>
-            {activeTask?.shareError && (
-              <p className="notice error">文件已处理完成，但 BaiduPCS-Go 未能创建分享链接。原因：{classifyShareFailure(activeTask.shareError).message}</p>
-            )}
-            {storage.activeMode === "windows_local_cli" && (
-              <p className={`notice ${storage.connectionOk ? "" : "error"}`}>
-                {storage.connectionOk
-                  ? "分享链接转存还未真实验证。请提供一个自有测试分享链接和提取码后运行 transfer smoke。"
-                  : "请先连接百度网盘。到设置中心打开百度网盘登录页，按教程导入 BDUSS 和 STOKEN 后再重新检测。"}
-              </p>
-            )}
-          </Card>
           {options.transferMode === "original" ? (
             <Card title="保存目录" action={<Tag tone="green">原样保存</Tag>}>
               <div className="rename-preview">
                 <div>
                   <span>正式路径</span>
                   <b>{activeTask?.resource?.savePath ?? "盘姬资源库/转存记录/{日期}/{任务名}"}</b>
-                </div>
-                <div>
-                  <span>文件处理</span>
-                  <b>不重命名、不移动、不拆分类目录</b>
-                </div>
-                <div>
-                  <span>内容分类</span>
-                  <b>{activeTask?.resource?.contentCategory ?? "转存后自动识别"}</b>
                 </div>
               </div>
             </Card>
@@ -396,6 +333,7 @@ export function BatchProcessPage({
             task={activeTask}
             template={options.shareTemplate}
             onTemplateChange={updateShareTemplate}
+            onToast={onToast}
           />
           <Card title="原样转存文件列表" action={<Tag tone="green">文件名保持不变</Tag>}>
             <ProcessedFileTable files={activeTask?.processedFiles ?? []} targetDirectory={activeTask?.resource?.savePath ?? options.targetDirectory} />
@@ -419,34 +357,10 @@ export function BatchProcessPage({
   );
 }
 
-function modeNotice(mode: AdapterMode, message: string): string {
-  if (mode === "mock") {
-    return "这是演示模式，不会真实转存。";
-  }
-  if (mode === "windows_native_official") {
-    return "当前官方 Windows 原生接入尚未确认支持分享链接转存。可先使用 Mock 演示，或切换到 bdpan WSL 高级模式。";
-  }
-  if (mode === "windows_local_cli") {
-    return "当前接入：Windows 本地 CLI。支持文件管理、转存与分享能力检测；未登录或 bridge 未连接时不得伪造成功。";
-  }
-  if (mode === "bdpan_wsl") {
-    return `bdpan WSL 高级模式：${message}`;
-  }
-  return message;
-}
-
 function taskToast(task: { status: string; shareError?: string; shareResult?: { extractCode?: string } }): string {
   if (task.status === "failed") return `任务失败：${task.shareError ?? "真实处理失败"}`;
   if (task.status === "partial_completed") return `部分完成：${task.shareError ?? "创建分享链接失败"}`;
   return `原样转存完成，已生成分享码 ${task.shareResult?.extractCode ?? "----"}`;
-}
-
-function resourceCheckLabel(task?: ProcessingTask): string {
-  if (!task?.resource) return "未检查";
-  if (task.resource.checkStatus === "checked") return "已检查";
-  if (task.resource.checkStatus === "pending") return "等待检查";
-  if (task.resource.checkStatus === "unsupported") return "功能未接线";
-  return "未检查";
 }
 
 function taskStatusLabel(status?: string): string {
@@ -460,56 +374,87 @@ function taskStatusLabel(status?: string): string {
 function ShareTemplateCard({
   task,
   template,
-  onTemplateChange
+  onTemplateChange,
+  onToast
 }: {
   task?: ProcessingTask;
   template: ShareTemplateSettings;
   onTemplateChange: (template: ShareTemplateSettings) => void;
+  onToast: (message: string) => void;
 }) {
-  const safeTemplate = template.type === "custom" ? { ...template, type: "xiaohongshu_virtual" as const } : template;
+  const templateDetail = template.type === "custom"
+    ? template.customTemplate || getShareTemplateText("xiaohongshu_virtual")
+    : template.customTemplate || getShareTemplateText(template.type);
+  const previewTemplate = template.type === "custom"
+    ? { ...template, customTemplate: templateDetail }
+    : template;
   const preview = task?.shareError
     ? "分享链接创建失败，无法生成可转发文案。"
     : task?.shareResult
       ? generateShareMessage({
           task,
           shareResult: task.shareResult,
-          template: safeTemplate,
+          template: previewTemplate,
           fileCount: task.finalShareFileCount
         })
       : "生成分享链接后将自动生成可转发文案。";
-  const update = (patch: Partial<typeof template>) => onTemplateChange({ ...template, ...patch });
-  const templateOptions = getShareTemplateOptions().filter((option) => option.value !== "custom");
-  const selectedTemplateType = template.type === "custom" ? "xiaohongshu_virtual" : template.type;
+  const templateOptions = getShareTemplateOptions();
+  const canCopyPreview = Boolean(task?.shareResult && !task?.shareError);
+
+  function selectTemplate(type: ShareTemplateSettings["type"]) {
+    onTemplateChange({
+      ...template,
+      type,
+      customTemplate: type === "custom" ? templateDetail : ""
+    });
+  }
+
+  function editTemplateDetail(value: string) {
+    onTemplateChange({
+      ...template,
+      type: "custom",
+      customTemplate: value
+    });
+  }
+
+  function copyPreview() {
+    if (!canCopyPreview) {
+      onToast("生成真实分享链接后才能复制文案");
+      return;
+    }
+    void navigator.clipboard?.writeText(preview).catch(() => undefined);
+    onToast("已复制文案");
+  }
 
   return (
-    <Card title="分享文案模板" action={<Tag tone="pink">默认小红书发货</Tag>}>
-      <div className="form-grid two">
+    <Card title="分享文案模板" action={<Tag tone="pink">{template.type === "custom" ? "自定义文案" : "默认小红书发货"}</Tag>}>
+      <div className="form-grid">
         <label>
           <span>模板类型</span>
-          <select className="input" value={selectedTemplateType} onChange={(event) => update({ type: event.target.value as typeof template.type })}>
+          <select className="input" value={template.type} onChange={(event) => selectTemplate(event.target.value as ShareTemplateSettings["type"])}>
             {templateOptions.map((option) => (
               <option value={option.value} key={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
-        <label>
-          <span>标题</span>
-          <input className="input" value={template.title} onChange={(event) => update({ title: event.target.value })} placeholder="资料包" />
-        </label>
-        <label>
-          <span>店铺名</span>
-          <input className="input" value={template.storeName ?? ""} onChange={(event) => update({ storeName: event.target.value })} placeholder="可选" />
-        </label>
-        <label>
-          <span>订单号</span>
-          <input className="input" value={template.orderNo ?? ""} onChange={(event) => update({ orderNo: event.target.value })} placeholder="可选" />
-        </label>
       </div>
-      <label className="field-label" htmlFor="share-template-note">备注</label>
-      <input id="share-template-note" className="input" value={template.note ?? ""} onChange={(event) => update({ note: event.target.value })} placeholder="可选，售后或发货提醒" />
+      <label className="field-label" htmlFor="share-template-detail">模板详情</label>
+      <textarea
+        id="share-template-detail"
+        className="input share-template-detail"
+        value={templateDetail}
+        onChange={(event) => editTemplateDetail(event.target.value)}
+        rows={7}
+        spellCheck={false}
+      />
       <div className={`share-message-preview ${task?.shareError ? "failed" : ""}`}>
         <b>可转发文案预览</b>
         <pre>{preview}</pre>
+      </div>
+      <div className="form-actions right">
+        <button className="secondary-btn" type="button" onClick={copyPreview} disabled={!canCopyPreview}>
+          复制文案
+        </button>
       </div>
     </Card>
   );

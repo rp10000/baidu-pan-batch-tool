@@ -765,6 +765,14 @@ button:disabled {
   overflow: auto;
 }
 
+.share-template-detail {
+  min-height: 168px;
+  height: auto;
+  padding: 13px;
+  line-height: 1.65;
+  resize: vertical;
+}
+
 .template-toolbar {
   display: grid;
   gap: 10px;
@@ -1347,6 +1355,16 @@ tbody tr {
   font-size: 13px;
   line-height: 1.65;
   white-space: pre-wrap;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.form-actions.right {
+  justify-content: flex-end;
 }
 
 .modal-message-preview {

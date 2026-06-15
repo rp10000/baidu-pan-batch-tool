@@ -78,7 +78,8 @@ test("settings and batch pages show local cli mode", async ({ page }) => {
   await page.screenshot({ path: "artifacts/screenshots/local-cli-capability-matrix.png", fullPage: true });
 
   await nav.getByRole("button", { name: /任务处理/ }).click();
-  await expect(page.getByText("当前模式")).toBeVisible();
+  await expect(page.getByText("任务输入区")).toBeVisible();
+  await expect(page.getByText("模板详情")).toBeVisible();
   await expect(page.getByRole("button", { name: "请先连接百度网盘" })).toBeVisible();
   await page.screenshot({ path: "artifacts/screenshots/local-cli-batch-ready-or-blocked.png", fullPage: true });
 });
